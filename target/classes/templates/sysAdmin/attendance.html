@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出勤管理 - 高校自习室智能管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        .admin-container { min-height: 100vh; }
+        .admin-header { background: #001529; color: white; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 600; }
+        .user-info { display: flex; align-items: center; gap: 16px; }
+        .admin-layout { display: flex; min-height: calc(100vh - 64px); }
+        .admin-sidebar { width: 200px; background: #001529; min-height: calc(100vh - 64px); }
+        .sidebar-menu { list-style: none; padding: 16px 0; }
+        .sidebar-menu li { padding: 12px 24px; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.3s; }
+        .sidebar-menu li:hover, .sidebar-menu li.active { color: white; background: #1890ff; }
+        .admin-main { flex: 1; padding: 24px; }
+        .page-title { font-size: 24px; margin-bottom: 24px; color: #1f2f3d; }
+        .content-card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .search-bar { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .pagination { margin-top: 20px; display: flex; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="admin-container">
+            <header class="admin-header">
+                <div class="logo">高校自习室智能管理系统</div>
+                <div class="user-info">
+                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                    <el-button type="danger" size="small" @click="logout">退出</el-button>
+                </div>
+            </header>
+            <div class="admin-layout">
+                <aside class="admin-sidebar">
+                    <ul class="sidebar-menu">
+                        <li @click="goTo('/sysadmin/dashboard')">控制台</li>
+                        <li @click="goTo('/sysadmin/user')">用户管理</li>
+                        <li @click="goTo('/sysadmin/studyroom')">自习室管理</li>
+                        <li class="active" @click="goTo('/sysadmin/attendance')">出勤管理</li>
+                        <li @click="goTo('/sysadmin/notice')">公告管理</li>
+                        <li @click="goTo('/sysadmin/forum')">论坛管理</li>
+                        <li @click="goTo('/sysadmin/statistics')">数据统计</li>
+                    </ul>
+                </aside>
+                <main class="admin-main">
+                    <h1 class="page-title">出勤管理</h1>
+
+                    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+                        <!-- Tab1: 出勤记录 -->
+                        <el-tab-pane label="出勤记录" name="records">
+                            <div class="content-card">
+                                <div class="search-bar">
+                                    <el-input v-model="recordSearch.userName" placeholder="用户名" style="width: 130px;" clearable></el-input>
+                                    <el-select v-model="recordSearch.status" placeholder="出勤状态" style="width: 130px;" clearable>
+                                        <el-option label="待签到" :value="0"></el-option>
+                                        <el-option label="使用中" :value="1"></el-option>
+                                        <el-option label="已完成" :value="2"></el-option>
+                                        <el-option label="已违约" :value="3"></el-option>
+                                        <el-option label="已取消" :value="4"></el-option>
+                                    </el-select>
+                                    <el-date-picker v-model="recordSearch.date" type="date" placeholder="预约日期" style="width: 150px;" value-format="YYYY-MM-DD"></el-date-picker>
+                                    <el-button type="primary" @click="fetchRecords">查询</el-button>
+                                    <el-button @click="resetRecordSearch">重置</el-button>
+                                </div>
+                                <el-table :data="recordList" v-loading="recordLoading" border size="small">
+                                    <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                    <el-table-column prop="userName" label="用户名" width="90"></el-table-column>
+                                    <el-table-column prop="realName" label="姓名" width="80"></el-table-column>
+                                    <el-table-column prop="roomName" label="自习室" width="130" show-overflow-tooltip></el-table-column>
+                                    <el-table-column prop="seatNumber" label="座位" width="70"></el-table-column>
+                                    <el-table-column prop="reservationDate" label="日期" width="100"></el-table-column>
+                                    <el-table-column label="时间" width="120">
+                                        <template #default="scope">{{scope.row.startTime}} - {{scope.row.endTime}}</template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="90">
+                                        <template #default="scope">
+                                            <el-tag v-if="scope.row.status === 0" type="info" size="small">待签到</el-tag>
+                                            <el-tag v-else-if="scope.row.status === 1" type="success" size="small">使用中</el-tag>
+                                            <el-tag v-else-if="scope.row.status === 2" type="primary" size="small">已完成</el-tag>
+                                            <el-tag v-else-if="scope.row.status === 3" type="danger" size="small">已违约</el-tag>
+                                            <el-tag v-else-if="scope.row.status === 4" type="warning" size="small">已取消</el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="申诉" width="90">
+                                        <template #default="scope">
+                                            <el-tag v-if="scope.row.appealStatus === 1" type="warning" size="small">待处理</el-tag>
+                                            <el-tag v-else-if="scope.row.appealStatus === 2" type="success" size="small">已通过</el-tag>
+                                            <el-tag v-else-if="scope.row.appealStatus === 3" type="info" size="small">已驳回</el-tag>
+                                            <span v-else>--</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="userViolationCount" label="累计违约" width="80"></el-table-column>
+                                    <el-table-column prop="continuousCheckinDays" label="连续签到" width="80"></el-table-column>
+                                </el-table>
+                                <div class="pagination">
+                                    <el-pagination v-model:current-page="recordPage.current" v-model:page-size="recordPage.size" :total="recordPage.total" :page-sizes="[10,20,50]" layout="total, sizes, prev, pager, next" @size-change="fetchRecords" @current-change="fetchRecords"></el-pagination>
+                                </div>
+                            </div>
+                        </el-tab-pane>
+
+                        <!-- Tab2: 用户统计 -->
+                        <el-tab-pane label="用户统计" name="users">
+                            <div class="content-card">
+                                <div class="search-bar">
+                                    <el-input v-model="userSearch.username" placeholder="用户名" style="width: 160px;" clearable></el-input>
+                                    <el-button type="primary" @click="fetchUsers">查询</el-button>
+                                    <el-button @click="resetUserSearch">重置</el-button>
+                                    <el-button type="success" @click="exportUsers">
+                                        导出连续签到用户（≥{{rewardDays}}天）
+                                    </el-button>
+                                </div>
+                                <el-table :data="userList" v-loading="userLoading" border size="small">
+                                    <el-table-column prop="username" label="用户名" width="100"></el-table-column>
+                                    <el-table-column prop="realName" label="姓名" width="80"></el-table-column>
+                                    <el-table-column prop="studentId" label="学号" width="120"></el-table-column>
+                                    <el-table-column prop="department" label="院系" min-width="120" show-overflow-tooltip></el-table-column>
+                                    <el-table-column prop="violationCount" label="累计违约" width="90">
+                                        <template #default="scope">
+                                            <el-tag :type="scope.row.violationCount >= maxViolation ? 'danger' : 'info'" size="small">
+                                                {{scope.row.violationCount}}
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="continuousCheckinDays" label="连续签到天数" width="110">
+                                        <template #default="scope">
+                                            <el-tag :type="scope.row.continuousCheckinDays >= rewardDays ? 'success' : ''" size="small">
+                                                {{scope.row.continuousCheckinDays}}天
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="禁约状态" width="100">
+                                        <template #default="scope">
+                                            <el-tag v-if="scope.row.isBanned" type="danger" size="small">已禁约</el-tag>
+                                            <el-tag v-else type="success" size="small">正常</el-tag>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                                <div class="pagination">
+                                    <el-pagination v-model:current-page="userPage.current" v-model:page-size="userPage.size" :total="userPage.total" :page-sizes="[10,20,50]" layout="total, sizes, prev, pager, next" @size-change="fetchUsers" @current-change="fetchUsers"></el-pagination>
+                                </div>
+                            </div>
+                        </el-tab-pane>
+
+                        <!-- Tab3: 申诉处理 -->
+                        <el-tab-pane name="appeals">
+                            <template #label>
+                                <span>申诉处理
+                                    <el-badge v-if="appealTotal > 0" :value="appealTotal" type="danger" style="margin-left: 4px;"></el-badge>
+                                </span>
+                            </template>
+                            <div class="content-card">
+                                <el-table :data="appealList" v-loading="appealLoading" border size="small">
+                                    <el-table-column prop="id" label="记录ID" width="70"></el-table-column>
+                                    <el-table-column prop="userName" label="用户名" width="90"></el-table-column>
+                                    <el-table-column prop="realName" label="姓名" width="80"></el-table-column>
+                                    <el-table-column prop="roomName" label="自习室" width="130" show-overflow-tooltip></el-table-column>
+                                    <el-table-column prop="reservationDate" label="日期" width="100"></el-table-column>
+                                    <el-table-column label="时间" width="120">
+                                        <template #default="scope">{{scope.row.startTime}} - {{scope.row.endTime}}</template>
+                                    </el-table-column>
+                                    <el-table-column label="原记录状态" width="100">
+                                        <template #default="scope">
+                                            <el-tag v-if="scope.row.status === 3" type="danger" size="small">已违约</el-tag>
+                                            <el-tag v-else type="info" size="small">状态{{scope.row.status}}</el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="appealReason" label="申诉理由" min-width="150" show-overflow-tooltip></el-table-column>
+                                    <el-table-column label="操作" width="160" fixed="right">
+                                        <template #default="scope">
+                                            <el-button type="success" size="small" @click="handleAppeal(scope.row, 'approve')">通过申诉</el-button>
+                                            <el-button type="danger" size="small" @click="handleAppeal(scope.row, 'reject')">驳回</el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                                <div class="pagination">
+                                    <el-pagination v-model:current-page="appealPage.current" v-model:page-size="appealPage.size" :total="appealPage.total" layout="total, prev, pager, next" @current-change="fetchAppeals"></el-pagination>
+                                </div>
+                            </div>
+                        </el-tab-pane>
+
+                        <!-- Tab4: 规则设置 -->
+                        <el-tab-pane label="规则设置" name="settings">
+                            <div class="content-card">
+                                <div style="max-width: 500px;">
+                                    <h3 style="margin-bottom: 20px; color: #1f2f3d;">奖惩规则配置</h3>
+                                    <el-form :model="settingsForm" label-width="180px">
+                                        <el-form-item label="最大违约次数（禁约）">
+                                            <el-input-number v-model="settingsForm.maxViolation" :min="1" :max="20" style="width: 160px;"></el-input-number>
+                                            <span style="margin-left: 10px; color: #999; font-size: 13px;">次（达到后禁止预约）</span>
+                                        </el-form-item>
+                                        <el-form-item label="连续签到奖励天数">
+                                            <el-input-number v-model="settingsForm.rewardDays" :min="1" :max="365" style="width: 160px;"></el-input-number>
+                                            <span style="margin-left: 10px; color: #999; font-size: 13px;">天（可导表加德育分）</span>
+                                        </el-form-item>
+                                        <el-form-item>
+                                            <el-button type="primary" @click="saveSettings" :loading="settingsSaving">保存设置</el-button>
+                                        </el-form-item>
+                                    </el-form>
+                                    <div style="background: #f0f9ff; border: 1px solid #bae0ff; padding: 16px; border-radius: 6px; margin-top: 20px; color: #1677ff; font-size: 13px; line-height: 1.8;">
+                                        <b>说明：</b><br>
+                                        · 用户违约次数达到最大值后，系统将自动禁止其预约，直到管理员手动恢复。<br>
+                                        · 连续签到达到奖励天数后，可在"用户统计"中导出名单用于德育分加分。<br>
+                                        · 申诉处理：自习室管理员上报申诉后，在"申诉处理"标签中审核，通过则自动调整违约记录。
+                                    </div>
+                                </div>
+                            </div>
+                        </el-tab-pane>
+                    </el-tabs>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        const { createApp, ref, reactive, onMounted, computed } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+
+        createApp({
+            setup() {
+                const activeTab = ref('records');
+
+                // --- 出勤记录 ---
+                const recordLoading = ref(false);
+                const recordList = ref([]);
+                const recordSearch = reactive({ userName: '', status: null, date: '' });
+                const recordPage = reactive({ current: 1, size: 10, total: 0 });
+
+                const fetchRecords = async () => {
+                    recordLoading.value = true;
+                    try {
+                        const params = { page: recordPage.current, size: recordPage.size };
+                        if (recordSearch.userName) params.userName = recordSearch.userName;
+                        if (recordSearch.status !== null && recordSearch.status !== '') params.status = recordSearch.status;
+                        if (recordSearch.date) params.date = recordSearch.date;
+                        const res = await axios.get('/sysadmin/attendance/list', { params });
+                        if (res.data.code === 200) {
+                            recordList.value = res.data.data.records;
+                            recordPage.total = res.data.data.total;
+                        }
+                    } catch (e) { ElMessage.error('获取记录失败'); }
+                    finally { recordLoading.value = false; }
+                };
+                const resetRecordSearch = () => { recordSearch.userName = ''; recordSearch.status = null; recordSearch.date = ''; recordPage.current = 1; fetchRecords(); };
+
+                // --- 用户统计 ---
+                const userLoading = ref(false);
+                const userList = ref([]);
+                const userSearch = reactive({ username: '' });
+                const userPage = reactive({ current: 1, size: 10, total: 0 });
+                const maxViolation = ref(3);
+                const rewardDays = ref(7);
+
+                const fetchUsers = async () => {
+                    userLoading.value = true;
+                    try {
+                        const params = { page: userPage.current, size: userPage.size };
+                        if (userSearch.username) params.username = userSearch.username;
+                        const res = await axios.get('/sysadmin/attendance/users', { params });
+                        if (res.data.code === 200) {
+                            userList.value = res.data.data.records;
+                            userPage.total = res.data.data.total;
+                        }
+                    } catch (e) { ElMessage.error('获取用户统计失败'); }
+                    finally { userLoading.value = false; }
+                };
+                const resetUserSearch = () => { userSearch.username = ''; userPage.current = 1; fetchUsers(); };
+
+                const exportUsers = () => {
+                    window.open(`/sysadmin/attendance/export?minDays=${rewardDays.value}`, '_blank');
+                };
+
+                // --- 申诉处理 ---
+                const appealLoading = ref(false);
+                const appealList = ref([]);
+                const appealPage = reactive({ current: 1, size: 10, total: 0 });
+                const appealTotal = ref(0);
+
+                const fetchAppeals = async () => {
+                    appealLoading.value = true;
+                    try {
+                        const res = await axios.get('/sysadmin/attendance/appeals', { params: { page: appealPage.current, size: appealPage.size } });
+                        if (res.data.code === 200) {
+                            appealList.value = res.data.data.records;
+                            appealPage.total = res.data.data.total;
+                            appealTotal.value = res.data.data.total;
+                        }
+                    } catch (e) { ElMessage.error('获取申诉失败'); }
+                    finally { appealLoading.value = false; }
+                };
+
+                const handleAppeal = async (row, action) => {
+                    const label = action === 'approve' ? '通过' : '驳回';
+                    try {
+                        await ElMessageBox.confirm(`确认${label}该申诉？`, '提示', { type: 'warning' });
+                        const res = await axios.put(`/sysadmin/attendance/appeal/${row.id}/${action}`);
+                        if (res.data.code === 200) {
+                            ElMessage.success(`申诉已${label}`);
+                            fetchAppeals();
+                        } else ElMessage.error(res.data.message || '操作失败');
+                    } catch (e) { if (e !== 'cancel') ElMessage.error('操作失败'); }
+                };
+
+                // --- 规则设置 ---
+                const settingsForm = reactive({ maxViolation: 3, rewardDays: 7 });
+                const settingsSaving = ref(false);
+
+                const fetchSettings = async () => {
+                    try {
+                        const res = await axios.get('/sysadmin/settings');
+                        if (res.data.code === 200) {
+                            res.data.data.forEach(s => {
+                                if (s.settingKey === 'max_violation_limit') {
+                                    settingsForm.maxViolation = parseInt(s.settingValue);
+                                    maxViolation.value = settingsForm.maxViolation;
+                                }
+                                if (s.settingKey === 'reward_checkin_days') {
+                                    settingsForm.rewardDays = parseInt(s.settingValue);
+                                    rewardDays.value = settingsForm.rewardDays;
+                                }
+                            });
+                        }
+                    } catch (e) {}
+                };
+
+                const saveSettings = async () => {
+                    settingsSaving.value = true;
+                    try {
+                        await Promise.all([
+                            axios.put('/sysadmin/settings/max_violation_limit', { value: String(settingsForm.maxViolation) }),
+                            axios.put('/sysadmin/settings/reward_checkin_days', { value: String(settingsForm.rewardDays) })
+                        ]);
+                        maxViolation.value = settingsForm.maxViolation;
+                        rewardDays.value = settingsForm.rewardDays;
+                        ElMessage.success('设置已保存');
+                    } catch (e) { ElMessage.error('保存失败'); }
+                    finally { settingsSaving.value = false; }
+                };
+
+                const handleTabChange = (tab) => {
+                    if (tab === 'records') fetchRecords();
+                    else if (tab === 'users') fetchUsers();
+                    else if (tab === 'appeals') fetchAppeals();
+                    else if (tab === 'settings') fetchSettings();
+                };
+
+                const goTo = (path) => { window.location.href = path; };
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => { fetchRecords(); fetchAppeals(); fetchSettings(); });
+
+                return {
+                    activeTab, handleTabChange,
+                    recordLoading, recordList, recordSearch, recordPage, fetchRecords, resetRecordSearch,
+                    userLoading, userList, userSearch, userPage, maxViolation, rewardDays, fetchUsers, resetUserSearch, exportUsers,
+                    appealLoading, appealList, appealPage, appealTotal, fetchAppeals, handleAppeal,
+                    settingsForm, settingsSaving, saveSettings,
+                    goTo, logout
+                };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

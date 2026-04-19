@@ -47,7 +47,7 @@
                         <li @click="goTo('/admin/reservation')">预约管理</li>
                         <li class="active" @click="goTo('/admin/checkin')">出勤管理</li>
                         <li @click="goTo('/admin/forum')">论坛管理</li>
-                        <li @click="goTo('/admin/notice')">公告上报</li>
+                        <li @click="goTo('/admin/notice')">公告查看</li>
                         <li @click="goTo('/admin/profile')">个人中心</li>
                     </ul>
                 </aside>
@@ -82,6 +82,7 @@
                                 <el-option label="待签到" :value="0"></el-option>
                                 <el-option label="已签到" :value="1"></el-option>
                                 <el-option label="已完成" :value="2"></el-option>
+                                <el-option label="已违约" :value="3"></el-option>
                             </el-select>
                             <el-button type="primary" style="margin-left: 10px;" @click="fetchData">刷新</el-button>
                         </div>
@@ -112,7 +113,16 @@
                                     <el-tag v-if="scope.row.status === 0" type="info">待签到</el-tag>
                                     <el-tag v-else-if="scope.row.status === 1" type="success">已签到</el-tag>
                                     <el-tag v-else-if="scope.row.status === 2" type="primary">已完成</el-tag>
-                                    <el-tag v-else type="danger">已取消</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 3" type="danger">已违约</el-tag>
+                                    <el-tag v-else type="warning">已取消</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="申诉状态" width="90">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.appealStatus === 1" type="warning" size="small">待处理</el-tag>
+                                    <el-tag v-else-if="scope.row.appealStatus === 2" type="success" size="small">已通过</el-tag>
+                                    <el-tag v-else-if="scope.row.appealStatus === 3" type="info" size="small">已驳回</el-tag>
+                                    <span v-else>--</span>
                                 </template>
                             </el-table-column>
                             <el-table-column prop="checkInTime" label="签到时间" width="150">
@@ -121,9 +131,25 @@
                                     <span v-else style="color: #ff4d4f;">未签到</span>
                                 </template>
                             </el-table-column>
-                            <el-table-column label="操作" width="150" v-if="selectedStatus === 0">
+                            <el-table-column label="操作" width="240">
                                 <template #default="scope">
-                                    <el-button type="primary" size="small" @click="markAsCheckedIn(scope.row)">标记签到</el-button>
+                                    <!-- 待签到：可标记签到 或 直接标记违规 -->
+                                    <template v-if="scope.row.status === 0">
+                                        <el-button type="primary" size="small" @click="markAsCheckedIn(scope.row)">标记签到</el-button>
+                                        <el-button type="danger" size="small" plain @click="openMarkViolationDialog(scope.row)">标记违规</el-button>
+                                    </template>
+                                    <!-- 已签到：可标记违规 -->
+                                    <template v-else-if="scope.row.status === 1">
+                                        <el-button type="danger" size="small" plain @click="openMarkViolationDialog(scope.row)">标记违规</el-button>
+                                    </template>
+                                    <!-- 已违约：根据申诉状态显示 -->
+                                    <template v-else-if="scope.row.status === 3">
+                                        <el-button v-if="scope.row.appealStatus === 0" type="warning" size="small" @click="openAppealDialog(scope.row)">提交申诉</el-button>
+                                        <el-tag v-else-if="scope.row.appealStatus === 1" type="warning" size="small">申诉审核中</el-tag>
+                                        <el-tag v-else-if="scope.row.appealStatus === 2" type="success" size="small">申诉已通过</el-tag>
+                                        <el-tag v-else-if="scope.row.appealStatus === 3" type="info" size="small">申诉已驳回</el-tag>
+                                    </template>
+                                    <span v-else style="color: #999; font-size: 12px;">--</span>
                                 </template>
                             </el-table-column>
                         </el-table>
@@ -134,6 +160,35 @@
                 </main>
             </div>
         </div>
+
+        <!-- 申诉弹窗 -->
+        <el-dialog v-model="appealDialogVisible" title="申诉 - 申请取消违规" width="500px">
+            <p style="margin-bottom: 12px; color: #666;">记录：{{currentAppealRow?.userName}} | {{currentAppealRow?.reservationDate}} | {{currentAppealRow?.roomName}}</p>
+            <el-form :model="appealForm" label-width="80px">
+                <el-form-item label="申诉理由" required>
+                    <el-input v-model="appealForm.reason" type="textarea" :rows="4" placeholder="请说明申诉理由（如：因特殊原因无法准时到达，实际未使用座位等）"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="appealDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitAppeal">提交申诉</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 标记违规弹窗 -->
+        <el-dialog v-model="markViolationDialogVisible" title="标记违规" width="500px">
+            <p style="margin-bottom: 12px; color: #666;">记录：{{currentMarkRow?.userName}} | {{currentMarkRow?.reservationDate}} | {{currentMarkRow?.roomName}}</p>
+            <el-alert type="warning" title="此操作将把该预约记录标记为违规，并增加用户违约次数。请确认该用户确实违规。" :closable="false" style="margin-bottom: 16px;"></el-alert>
+            <el-form :model="markViolationForm" label-width="80px">
+                <el-form-item label="违规原因">
+                    <el-input v-model="markViolationForm.reason" type="textarea" :rows="3" placeholder="请说明违规原因"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="markViolationDialogVisible = false">取消</el-button>
+                <el-button type="danger" @click="submitMarkViolation">确认标记违规</el-button>
+            </template>
+        </el-dialog>
     </div>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
@@ -153,6 +208,14 @@
                 const detailLoading = ref(false);
                 const page = reactive({ current: 1, size: 10, total: 0 });
                 let chart = null;
+
+                // 申诉
+                const appealDialogVisible = ref(false);
+                const currentAppealRow = ref(null);
+                const appealForm = reactive({ reason: '' });
+                const markViolationDialogVisible = ref(false);
+                const currentMarkRow = ref(null);
+                const markViolationForm = reactive({ reason: '' });
 
                 const fetchRooms = async () => {
                     try {
@@ -242,13 +305,48 @@
 
                 watch(() => page.current, fetchDetail);
 
+                const openAppealDialog = (row) => {
+                    currentAppealRow.value = row;
+                    appealForm.reason = '';
+                    appealDialogVisible.value = true;
+                };
+                const submitAppeal = async () => {
+                    if (!appealForm.reason.trim()) { ElMessage.warning('请填写申诉理由'); return; }
+                    try {
+                        const res = await axios.put(`/api/roomadmin/reservation/${currentAppealRow.value.id}/appeal`, { reason: appealForm.reason });
+                        if (res.data.code === 200) {
+                            ElMessage.success('申诉已提交，等待系统管理员审核');
+                            appealDialogVisible.value = false;
+                            fetchDetail();
+                        } else ElMessage.error(res.data.message || '提交失败');
+                    } catch (e) { ElMessage.error('提交失败'); }
+                };
+                const openMarkViolationDialog = (row) => {
+                    currentMarkRow.value = row;
+                    markViolationForm.reason = '';
+                    markViolationDialogVisible.value = true;
+                };
+                const submitMarkViolation = async () => {
+                    try {
+                        const res = await axios.put(`/api/roomadmin/reservation/${currentMarkRow.value.id}/mark-violation`, { reason: markViolationForm.reason });
+                        if (res.data.code === 200) {
+                            ElMessage.success('已标记为违规');
+                            markViolationDialogVisible.value = false;
+                            fetchDetail();
+                        } else ElMessage.error(res.data.message || '操作失败');
+                    } catch (e) { ElMessage.error('操作失败'); }
+                };
+
                 const goTo = (path) => { window.location.href = path; };
                 const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
 
                 onMounted(() => { fetchRooms(); fetchData(); });
 
                 return { stats, queryDate, selectedRoom, selectedStatus, rooms, attendanceList, detailLoading, page,
-                         fetchData, fetchDetail, markAsCheckedIn, goTo, logout };
+                         fetchData, fetchDetail, markAsCheckedIn,
+                         appealDialogVisible, currentAppealRow, appealForm, openAppealDialog, submitAppeal,
+                         markViolationDialogVisible, currentMarkRow, markViolationForm, openMarkViolationDialog, submitMarkViolation,
+                         goTo, logout };
             }
         }).use(ElementPlus).mount('#app');
     </script>

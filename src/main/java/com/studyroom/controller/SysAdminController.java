@@ -9,16 +9,22 @@ import com.studyroom.entity.Notice;
 import com.studyroom.entity.Reservation;
 import com.studyroom.entity.Seat;
 import com.studyroom.entity.StudyRoom;
+import com.studyroom.entity.SysSetting;
 import com.studyroom.entity.User;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
 import com.studyroom.service.StudyRoomService;
+import com.studyroom.service.SysSettingService;
 import com.studyroom.service.UserService;
 import com.studyroom.service.NoticeService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,6 +43,9 @@ public class SysAdminController {
 
     @Autowired
     private StudyRoomService studyRoomService;
+
+    @Autowired
+    private SysSettingService sysSettingService;
 
     @Autowired
     private ReservationService reservationService;
@@ -456,7 +465,8 @@ public class SysAdminController {
         
         LambdaQueryWrapper<Notice> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Notice::getDeleted, 0);
-        
+        wrapper.eq(Notice::getPublisherType, 1); // 只显示系统管理员发布的公告
+
         if (title != null && !title.isEmpty()) {
             wrapper.like(Notice::getTitle, title);
         }
@@ -474,34 +484,21 @@ public class SysAdminController {
 
     @PostMapping("/notice")
     public Result<Notice> addNotice(@RequestBody Notice notice, HttpSession session) {
-        // 从session获取当前用户
         User currentUser = (User) session.getAttribute("user");
-        if (currentUser != null) {
-            notice.setPublisherId(currentUser.getId());
-            notice.setPublisherName(currentUser.getRealName() != null ? currentUser.getRealName() : currentUser.getUsername());
-            notice.setPublisherType(currentUser.getUserType()); // 1-系统管理员 2-自习室管理员
-        } else {
-            notice.setPublisherName("系统管理员");
-            notice.setPublisherType(1);
-        }
-        
+        if (currentUser == null) return Result.error(401, "未登录");
+
+        notice.setPublisherId(currentUser.getId());
+        notice.setPublisherName(currentUser.getRealName() != null ? currentUser.getRealName() : currentUser.getUsername());
+        // userType=3 是系统管理员，publisherType 约定 1=系统管理员
+        notice.setPublisherType(1);
         notice.setViewCount(0);
+        notice.setStatus(2); // 系统管理员直接发布
+        notice.setPublishTime(LocalDateTime.now());
         notice.setCreateTime(LocalDateTime.now());
         notice.setUpdateTime(LocalDateTime.now());
-        
-        // 系统管理员创建直接为已发布状态(2)，自习室管理员创建为草稿状态(0)
-        if (notice.getPublisherType() != null && notice.getPublisherType() == 1) {
-            notice.setStatus(2); // 系统管理员直接发布
-            notice.setPublishTime(LocalDateTime.now());
-        } else {
-            notice.setStatus(0); // 自习室管理员上报，待审核
-        }
-        
+
         boolean success = noticeService.save(notice);
-        if (success) {
-            return Result.success("保存成功", notice);
-        }
-        return Result.error(500, "保存失败");
+        return success ? Result.success("发布成功", notice) : Result.error(500, "发布失败");
     }
 
     // 一级审核通过（自习室管理员上报 → 一级审核）
@@ -559,10 +556,14 @@ public class SysAdminController {
         notice.setUpdateTime(LocalDateTime.now());
         
         boolean success = noticeService.updateById(notice);
-        if (success) {
-            return Result.success("屏蔽成功");
-        }
-        return Result.error(500, "屏蔽失败");
+        return success ? Result.success("屏蔽成功") : Result.error(500, "屏蔽失败");
+    }
+
+    // 删除公告
+    @DeleteMapping("/notice/{id}")
+    public Result<String> deleteNotice(@PathVariable Long id) {
+        boolean success = noticeService.removeById(id);
+        return success ? Result.success("删除成功") : Result.error(500, "删除失败");
     }
 
     // ========== 数据统计 ==========
@@ -692,5 +693,258 @@ public class SysAdminController {
             return Result.success("发布成功");
         }
         return Result.error(500, "发布失败");
+    }
+
+    // ========== 出勤管理 ==========
+
+    @GetMapping("/attendance/list")
+    public Result<Page<Map<String, Object>>> getAttendanceList(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String userName,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String date) {
+
+        LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
+        if (status != null) wrapper.eq(Reservation::getStatus, status);
+        if (date != null && !date.isEmpty()) wrapper.eq(Reservation::getReservationDate, LocalDate.parse(date));
+        wrapper.orderByDesc(Reservation::getCreateTime);
+
+        Page<Reservation> pageResult = reservationService.page(new Page<>(page, size), wrapper);
+
+        List<Long> userIds = pageResult.getRecords().stream().map(Reservation::getUserId).distinct().collect(Collectors.toList());
+        List<Long> roomIds = pageResult.getRecords().stream().map(Reservation::getRoomId).distinct().collect(Collectors.toList());
+        List<Long> seatIds = pageResult.getRecords().stream().map(Reservation::getSeatId).distinct().collect(Collectors.toList());
+
+        Map<Long, User> userMap = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            LambdaQueryWrapper<User> uq = new LambdaQueryWrapper<>();
+            uq.in(User::getId, userIds);
+            userService.list(uq).forEach(u -> userMap.put(u.getId(), u));
+        }
+        Map<Long, StudyRoom> roomMap = new HashMap<>();
+        if (!roomIds.isEmpty()) {
+            LambdaQueryWrapper<StudyRoom> rq = new LambdaQueryWrapper<>();
+            rq.in(StudyRoom::getId, roomIds);
+            studyRoomService.list(rq).forEach(r -> roomMap.put(r.getId(), r));
+        }
+        Map<Long, Seat> seatMap = new HashMap<>();
+        if (!seatIds.isEmpty()) {
+            LambdaQueryWrapper<Seat> sq = new LambdaQueryWrapper<>();
+            sq.in(Seat::getId, seatIds);
+            seatService.list(sq).forEach(s -> seatMap.put(s.getId(), s));
+        }
+
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (Reservation r : pageResult.getRecords()) {
+            User user = userMap.get(r.getUserId());
+            if (userName != null && !userName.isEmpty() && (user == null || !user.getUsername().contains(userName))) continue;
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", r.getId());
+            map.put("userId", r.getUserId());
+            map.put("userName", user != null ? user.getUsername() : "未知");
+            map.put("realName", user != null ? user.getRealName() : "");
+            map.put("userViolationCount", user != null && user.getViolationCount() != null ? user.getViolationCount() : 0);
+            map.put("continuousCheckinDays", user != null && user.getContinuousCheckinDays() != null ? user.getContinuousCheckinDays() : 0);
+            StudyRoom room = roomMap.get(r.getRoomId());
+            map.put("roomName", room != null ? room.getName() : "未知");
+            Seat seat = seatMap.get(r.getSeatId());
+            map.put("seatNumber", seat != null ? seat.getSeatNumber() : "未知");
+            map.put("reservationDate", r.getReservationDate());
+            map.put("startTime", r.getStartTime());
+            map.put("endTime", r.getEndTime());
+            map.put("status", r.getStatus());
+            map.put("checkInTime", r.getCheckInTime());
+            map.put("checkOutTime", r.getCheckOutTime());
+            map.put("appealStatus", r.getAppealStatus());
+            map.put("appealReason", r.getAppealReason());
+            map.put("createTime", r.getCreateTime());
+            records.add(map);
+        }
+
+        Page<Map<String, Object>> resultPage = new Page<>(page, size, pageResult.getTotal());
+        resultPage.setRecords(records);
+        return Result.success(resultPage);
+    }
+
+    @GetMapping("/attendance/users")
+    public Result<Page<Map<String, Object>>> getAttendanceUsers(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String username) {
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1);
+        if (username != null && !username.isEmpty()) wrapper.like(User::getUsername, username);
+        wrapper.orderByDesc(User::getViolationCount);
+
+        Page<User> pageResult = userService.page(new Page<>(page, size), wrapper);
+
+        LambdaQueryWrapper<SysSetting> sq = new LambdaQueryWrapper<>();
+        sq.eq(SysSetting::getSettingKey, "max_violation_limit");
+        SysSetting setting = sysSettingService.getOne(sq);
+        int maxLimit = setting != null ? Integer.parseInt(setting.getSettingValue()) : 3;
+
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (User u : pageResult.getRecords()) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", u.getId());
+            map.put("username", u.getUsername());
+            map.put("realName", u.getRealName());
+            map.put("studentId", u.getStudentId());
+            map.put("department", u.getDepartment());
+            map.put("violationCount", u.getViolationCount() != null ? u.getViolationCount() : 0);
+            map.put("continuousCheckinDays", u.getContinuousCheckinDays() != null ? u.getContinuousCheckinDays() : 0);
+            map.put("isBanned", (u.getViolationCount() != null && u.getViolationCount() >= maxLimit));
+            map.put("status", u.getStatus());
+            records.add(map);
+        }
+
+        Page<Map<String, Object>> resultPage = new Page<>(page, size, pageResult.getTotal());
+        resultPage.setRecords(records);
+        return Result.success(resultPage);
+    }
+
+    @GetMapping("/attendance/appeals")
+    public Result<Page<Map<String, Object>>> getPendingAppeals(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+
+        LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Reservation::getAppealStatus, 1).orderByDesc(Reservation::getCreateTime);
+
+        Page<Reservation> pageResult = reservationService.page(new Page<>(page, size), wrapper);
+
+        List<Long> userIds = pageResult.getRecords().stream().map(Reservation::getUserId).distinct().collect(Collectors.toList());
+        List<Long> roomIds = pageResult.getRecords().stream().map(Reservation::getRoomId).distinct().collect(Collectors.toList());
+        Map<Long, User> userMap = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            LambdaQueryWrapper<User> uq = new LambdaQueryWrapper<>();
+            uq.in(User::getId, userIds);
+            userService.list(uq).forEach(u -> userMap.put(u.getId(), u));
+        }
+        Map<Long, StudyRoom> roomMap = new HashMap<>();
+        if (!roomIds.isEmpty()) {
+            LambdaQueryWrapper<StudyRoom> rq = new LambdaQueryWrapper<>();
+            rq.in(StudyRoom::getId, roomIds);
+            studyRoomService.list(rq).forEach(r -> roomMap.put(r.getId(), r));
+        }
+
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (Reservation r : pageResult.getRecords()) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", r.getId());
+            User user = userMap.get(r.getUserId());
+            map.put("userName", user != null ? user.getUsername() : "未知");
+            map.put("realName", user != null ? user.getRealName() : "");
+            StudyRoom room = roomMap.get(r.getRoomId());
+            map.put("roomName", room != null ? room.getName() : "未知");
+            map.put("reservationDate", r.getReservationDate());
+            map.put("startTime", r.getStartTime());
+            map.put("endTime", r.getEndTime());
+            map.put("status", r.getStatus());
+            map.put("appealStatus", r.getAppealStatus());
+            map.put("appealReason", r.getAppealReason());
+            map.put("createTime", r.getCreateTime());
+            records.add(map);
+        }
+
+        Page<Map<String, Object>> resultPage = new Page<>(page, size, pageResult.getTotal());
+        resultPage.setRecords(records);
+        return Result.success(resultPage);
+    }
+
+    @PutMapping("/attendance/appeal/{id}/approve")
+    public Result<String> approveAppeal(@PathVariable Long id) {
+        Reservation reservation = reservationService.getById(id);
+        if (reservation == null) return Result.error(404, "记录不存在");
+        if (reservation.getAppealStatus() != 1) return Result.error(400, "该申诉不在待处理状态");
+
+        boolean wasViolation = reservation.getStatus() == 3;
+        reservation.setAppealStatus(2); // 申诉通过
+        reservation.setStatus(wasViolation ? 4 : 3); // 4=已取消(非违约) or 3=已违约
+        reservation.setUpdateTime(LocalDateTime.now());
+        reservationService.updateById(reservation);
+
+        // 调整用户违约次数
+        User user = userService.getById(reservation.getUserId());
+        if (user != null) {
+            if (wasViolation) {
+                // 原来是违约，申诉通过后取消违约，减少违约次数
+                int count = user.getViolationCount() != null ? user.getViolationCount() : 0;
+                user.setViolationCount(Math.max(0, count - 1));
+            } else {
+                // 原来不是违约，申诉通过后改为违约，增加违约次数
+                int count = user.getViolationCount() != null ? user.getViolationCount() : 0;
+                user.setViolationCount(count + 1);
+                reservation.setStatus(3);
+                reservationService.updateById(reservation);
+            }
+            userService.updateById(user);
+        }
+        return Result.success("申诉已通过");
+    }
+
+    @PutMapping("/attendance/appeal/{id}/reject")
+    public Result<String> rejectAppeal(@PathVariable Long id) {
+        Reservation reservation = reservationService.getById(id);
+        if (reservation == null) return Result.error(404, "记录不存在");
+        if (reservation.getAppealStatus() != 1) return Result.error(400, "该申诉不在待处理状态");
+
+        reservation.setAppealStatus(3); // 申诉驳回
+        reservation.setUpdateTime(LocalDateTime.now());
+        reservationService.updateById(reservation);
+        return Result.success("申诉已驳回");
+    }
+
+    @GetMapping("/settings")
+    public Result<List<SysSetting>> getSettings() {
+        return Result.success(sysSettingService.list());
+    }
+
+    @PutMapping("/settings/{key}")
+    public Result<String> updateSetting(@PathVariable String key, @RequestBody Map<String, String> params) {
+        LambdaQueryWrapper<SysSetting> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysSetting::getSettingKey, key);
+        SysSetting setting = sysSettingService.getOne(wrapper);
+        if (setting == null) {
+            setting = new SysSetting();
+            setting.setSettingKey(key);
+            setting.setSettingValue(params.get("value"));
+            sysSettingService.save(setting);
+        } else {
+            setting.setSettingValue(params.get("value"));
+            sysSettingService.updateById(setting);
+        }
+        return Result.success("设置已更新");
+    }
+
+    @GetMapping("/attendance/export")
+    public ResponseEntity<byte[]> exportContinuousUsers(@RequestParam(defaultValue = "7") Integer minDays) {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
+               .ge(User::getContinuousCheckinDays, minDays)
+               .orderByDesc(User::getContinuousCheckinDays);
+        List<User> users = userService.list(wrapper);
+
+        StringBuilder csv = new StringBuilder("学号,姓名,用户名,院系,连续签到天数\n");
+        for (User u : users) {
+            csv.append(nullSafe(u.getStudentId())).append(",")
+               .append(nullSafe(u.getRealName())).append(",")
+               .append(nullSafe(u.getUsername())).append(",")
+               .append(nullSafe(u.getDepartment())).append(",")
+               .append(u.getContinuousCheckinDays() != null ? u.getContinuousCheckinDays() : 0).append("\n");
+        }
+
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        String filename = "连续签到用户_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
+        headers.setContentDispositionFormData("attachment", new String(filename.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1));
+        return ResponseEntity.ok().headers(headers).body(bytes);
+    }
+
+    private String nullSafe(String s) {
+        return s != null ? s.replace(",", "，") : "";
     }
 }

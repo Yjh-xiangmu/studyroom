@@ -466,18 +466,40 @@ public class RoomAdminController {
         }
 
         Reservation existing = reservationService.getById(id);
-        if (existing == null) {
-            return Result.error(404, "预约不存在");
-        }
+        if (existing == null) return Result.error(404, "预约不存在");
 
         StudyRoom room = studyRoomService.getById(existing.getRoomId());
         if (room == null || !room.getAdminId().equals(user.getId())) {
             return Result.error(403, "无权限");
         }
 
-        existing.setStatus(reservation.getStatus());
+        Integer newStatus = reservation.getStatus();
+        Integer oldStatus = existing.getStatus();
+
+        // 只允许以下状态变更：取消(→4)、标记违约(→3)、恢复待签到(→0)
+        if (newStatus != 4 && newStatus != 3 && newStatus != 0) {
+            return Result.error(400, "不允许直接将状态改为该值，请通过出勤管理操作");
+        }
+
+        existing.setStatus(newStatus);
         existing.setUpdateTime(LocalDateTime.now());
         reservationService.updateById(existing);
+
+        // 同步用户违约次数
+        User targetUser = userService.getById(existing.getUserId());
+        if (targetUser != null) {
+            if (newStatus == 3 && oldStatus != 3) {
+                // 变为违约：+1
+                targetUser.setViolationCount(targetUser.getViolationCount() == null ? 1 : targetUser.getViolationCount() + 1);
+                userService.updateById(targetUser);
+            } else if (oldStatus == 3 && newStatus != 3) {
+                // 从违约恢复：-1（最小为0）
+                int count = targetUser.getViolationCount() == null ? 0 : targetUser.getViolationCount();
+                targetUser.setViolationCount(Math.max(0, count - 1));
+                userService.updateById(targetUser);
+            }
+        }
+
         return Result.success("更新成功");
     }
 
@@ -597,6 +619,8 @@ public class RoomAdminController {
             map.put("roomName", room != null ? room.getName() : "未知");
             map.put("seatNumber", seat != null ? seat.getSeatNumber() : "未知");
             map.put("userName", u != null ? (u.getRealName() != null ? u.getRealName() : u.getUsername()) : "未知");
+            map.put("appealStatus", r.getAppealStatus());
+            map.put("appealReason", r.getAppealReason());
 
             records.add(map);
         }
@@ -610,7 +634,47 @@ public class RoomAdminController {
         return Result.success(result);
     }
 
-    // ========== 论坛管理 ==========
+    // ========== 出勤申诉 ==========
+    @PutMapping("/reservation/{id}/appeal")
+    public Result<String> submitAppeal(@PathVariable Long id, @RequestBody Map<String, String> params, HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null || user.getUserType() != 2) return Result.error(403, "无权限");
+
+        Reservation reservation = reservationService.getById(id);
+        if (reservation == null) return Result.error(404, "记录不存在");
+        if (reservation.getStatus() != 3) return Result.error(400, "只能对违约记录提交申诉");
+        if (reservation.getAppealStatus() != null && reservation.getAppealStatus() == 1) return Result.error(400, "该记录已有待处理申诉");
+
+        reservation.setAppealStatus(1);
+        reservation.setAppealReason(params.get("reason"));
+        reservation.setUpdateTime(LocalDateTime.now());
+        reservationService.updateById(reservation);
+        return Result.success("申诉已提交，等待系统管理员审核");
+    }
+
+    @PutMapping("/reservation/{id}/mark-violation")
+    public Result<String> markViolation(@PathVariable Long id, @RequestBody Map<String, String> params, HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null || user.getUserType() != 2) return Result.error(403, "无权限");
+
+        Reservation reservation = reservationService.getById(id);
+        if (reservation == null) return Result.error(404, "记录不存在");
+        if (reservation.getStatus() == 3) return Result.error(400, "该记录已是违约状态");
+
+        int oldStatus = reservation.getStatus();
+        reservation.setStatus(3); // 标记为违约
+        reservation.setAppealStatus(0);
+        reservation.setUpdateTime(LocalDateTime.now());
+        reservationService.updateById(reservation);
+
+        // 增加用户违约次数
+        User targetUser = userService.getById(reservation.getUserId());
+        if (targetUser != null) {
+            targetUser.setViolationCount(targetUser.getViolationCount() == null ? 1 : targetUser.getViolationCount() + 1);
+            userService.updateById(targetUser);
+        }
+        return Result.success("已标记为违规");
+    }
     @GetMapping("/posts")
     public Result<Page<Map<String, Object>>> getPosts(
             @RequestParam(defaultValue = "1") Integer page,

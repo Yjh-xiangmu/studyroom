@@ -6,10 +6,12 @@ import com.studyroom.common.Result;
 import com.studyroom.entity.Reservation;
 import com.studyroom.entity.Seat;
 import com.studyroom.entity.StudyRoom;
+import com.studyroom.entity.SysSetting;
 import com.studyroom.entity.User;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
 import com.studyroom.service.StudyRoomService;
+import com.studyroom.service.SysSettingService;
 import com.studyroom.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +40,9 @@ public class UserController {
 
     @Autowired
     private ReservationService reservationService;
+
+    @Autowired
+    private SysSettingService sysSettingService;
 
     @GetMapping("/info")
     public Result<User> getUserInfo(HttpSession session) {
@@ -173,5 +178,74 @@ public class UserController {
         result.put("labels", labels);
         result.put("data", data);
         return Result.success(result);
+    }
+
+    @GetMapping("/violation-info")
+    public Result<Map<String, Object>> getViolationInfo(HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null) {
+            return Result.error(401, "未登录");
+        }
+        User currentUser = userService.getById(user.getId());
+
+        int maxViolation = 3;
+        int rewardDays = 7;
+        SysSetting maxSetting = sysSettingService.getOne(
+                new LambdaQueryWrapper<SysSetting>().eq(SysSetting::getSettingKey, "max_violation_limit"));
+        if (maxSetting != null) {
+            try { maxViolation = Integer.parseInt(maxSetting.getSettingValue()); } catch (Exception ignored) {}
+        }
+        SysSetting rewardSetting = sysSettingService.getOne(
+                new LambdaQueryWrapper<SysSetting>().eq(SysSetting::getSettingKey, "reward_checkin_days"));
+        if (rewardSetting != null) {
+            try { rewardDays = Integer.parseInt(rewardSetting.getSettingValue()); } catch (Exception ignored) {}
+        }
+
+        int violationCount = currentUser.getViolationCount() != null ? currentUser.getViolationCount() : 0;
+        boolean isBanned = violationCount >= maxViolation;
+
+        // 连续签到天数
+        LambdaQueryWrapper<Reservation> checkinWrapper = new LambdaQueryWrapper<>();
+        checkinWrapper.eq(Reservation::getUserId, currentUser.getId()).isNotNull(Reservation::getCheckInTime);
+        List<Reservation> checkins = reservationService.list(checkinWrapper);
+        Set<LocalDate> checkinDays = new HashSet<>();
+        for (Reservation r : checkins) {
+            checkinDays.add(r.getCheckInTime().toLocalDate());
+        }
+        int continuousDays = 0;
+        LocalDate day = LocalDate.now();
+        while (checkinDays.contains(day)) {
+            continuousDays++;
+            day = day.minusDays(1);
+        }
+
+        // 违约记录列表
+        LambdaQueryWrapper<Reservation> violationWrapper = new LambdaQueryWrapper<>();
+        violationWrapper.eq(Reservation::getUserId, currentUser.getId()).eq(Reservation::getStatus, 3);
+        List<Reservation> violations = reservationService.list(violationWrapper);
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (Reservation r : violations) {
+            Map<String, Object> rec = new HashMap<>();
+            rec.put("id", r.getId());
+            rec.put("reservationDate", r.getReservationDate());
+            rec.put("startTime", r.getStartTime());
+            rec.put("endTime", r.getEndTime());
+            rec.put("appealStatus", r.getAppealStatus() != null ? r.getAppealStatus() : 0);
+            rec.put("createTime", r.getCreateTime());
+            StudyRoom room = studyRoomService.getById(r.getRoomId());
+            rec.put("roomName", room != null ? room.getName() : "");
+            Seat seat = seatService.getById(r.getSeatId());
+            rec.put("seatNumber", seat != null ? seat.getSeatNumber() : "");
+            records.add(rec);
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("violationCount", violationCount);
+        data.put("continuousCheckinDays", continuousDays);
+        data.put("isBanned", isBanned);
+        data.put("maxViolation", maxViolation);
+        data.put("rewardDays", rewardDays);
+        data.put("records", records);
+        return Result.success(data);
     }
 }

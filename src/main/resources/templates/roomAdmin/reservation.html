@@ -41,7 +41,7 @@
                         <li class="active" @click="goTo('/admin/reservation')">预约管理</li>
                         <li @click="goTo('/admin/checkin')">出勤管理</li>
                         <li @click="goTo('/admin/forum')">论坛管理</li>
-                        <li @click="goTo('/admin/notice')">公告上报</li>
+                        <li @click="goTo('/admin/notice')">公告查看</li>
                         <li @click="goTo('/admin/profile')">个人中心</li>
                     </ul>
                 </aside>
@@ -60,7 +60,8 @@
                                         <el-option label="待签到" :value="0"></el-option>
                                         <el-option label="已签到" :value="1"></el-option>
                                         <el-option label="已完成" :value="2"></el-option>
-                                        <el-option label="已取消" :value="3"></el-option>
+                                        <el-option label="已违约" :value="3"></el-option>
+                                        <el-option label="已取消" :value="4"></el-option>
                                     </el-select>
                                 </el-col>
                                 <el-col :span="6">
@@ -85,7 +86,8 @@
                                     <el-tag v-if="scope.row.status === 0" type="info">待签到</el-tag>
                                     <el-tag v-else-if="scope.row.status === 1" type="success">已签到</el-tag>
                                     <el-tag v-else-if="scope.row.status === 2" type="primary">已完成</el-tag>
-                                    <el-tag v-else type="danger">已取消</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 3" type="danger">已违约</el-tag>
+                                    <el-tag v-else type="warning">已取消</el-tag>
                                 </template>
                             </el-table-column>
                             <el-table-column prop="checkInTime" label="签到时间" width="150">
@@ -112,7 +114,7 @@
                 </main>
             </div>
         </div>
-        
+
         <!-- 修改预约弹窗 -->
         <el-dialog v-model="editDialogVisible" title="修改预约状态" width="400px">
             <el-form :model="editForm" label-width="100px">
@@ -132,15 +134,16 @@
                     <el-tag v-if="editForm.status === 0" type="info">待签到</el-tag>
                     <el-tag v-else-if="editForm.status === 1" type="success">已签到</el-tag>
                     <el-tag v-else-if="editForm.status === 2" type="primary">已完成</el-tag>
-                    <el-tag v-else type="danger">已取消</el-tag>
+                    <el-tag v-else-if="editForm.status === 3" type="danger">已违约</el-tag>
+                    <el-tag v-else type="warning">已取消</el-tag>
                 </el-form-item>
                 <el-form-item label="修改状态">
                     <el-select v-model="editForm.newStatus" placeholder="选择新状态" style="width: 100%;">
                         <el-option label="待签到" :value="0"></el-option>
-                        <el-option label="已签到" :value="1"></el-option>
-                        <el-option label="已完成" :value="2"></el-option>
-                        <el-option label="已取消" :value="3"></el-option>
+                        <el-option label="已违约" :value="3"></el-option>
+                        <el-option label="已取消" :value="4"></el-option>
                     </el-select>
+                    <div style="color: #999; font-size: 12px; margin-top: 4px;">已签到/已完成状态请通过出勤管理操作</div>
                 </el-form-item>
             </el-form>
             <template #footer>
@@ -162,7 +165,7 @@
                 const reservations = ref([]);
                 const filter = reactive({ roomId: null, status: null, date: null });
                 const page = reactive({ current: 1, size: 10, total: 0 });
-                
+
                 const editDialogVisible = ref(false);
                 const saving = ref(false);
                 const editForm = reactive({ id: null, userName: '', roomName: '', seatNumber: '', reservationDate: '', startTime: '', endTime: '', status: null, newStatus: null });
@@ -181,7 +184,7 @@
                         if (filter.roomId) url += `&roomId=${filter.roomId}`;
                         if (filter.status !== null) url += `&status=${filter.status}`;
                         if (filter.date) url += `&date=${filter.date.toISOString().split('T')[0]}`;
-                        
+
                         const res = await axios.get(url);
                         if (res.data.code === 200) {
                             reservations.value = res.data.data.records;
@@ -197,13 +200,13 @@
                     filter.date = null;
                     fetchReservations();
                 };
-                
+
                 const editReservation = (row) => {
                     Object.assign(editForm, row);
                     editForm.newStatus = row.status;
                     editDialogVisible.value = true;
                 };
-                
+
                 const saveReservation = async () => {
                     if (editForm.newStatus === editForm.status) {
                         ElMessage.warning('请选择不同的状态');
@@ -225,7 +228,7 @@
                         saving.value = false;
                     }
                 };
-                
+
                 const deleteReservation = async (row) => {
                     try {
                         await ElMessageBox.confirm('确定要删除该预约吗？此操作不可恢复', '提示', {
@@ -233,7 +236,7 @@
                             cancelButtonText: '取消',
                             type: 'warning'
                         });
-                        
+
                         const res = await axios.delete(`/api/roomadmin/reservation/${row.id}`);
                         if (res.data.code === 200) {
                             ElMessage.success('删除成功');
@@ -255,7 +258,7 @@
 
                 onMounted(() => { fetchRooms(); fetchReservations(); });
 
-                return { loading, rooms, reservations, filter, page, fetchReservations, resetFilter, 
+                return { loading, rooms, reservations, filter, page, fetchReservations, resetFilter,
                          editDialogVisible, editForm, saving, editReservation, saveReservation, deleteReservation,
                          goTo, logout };
             }

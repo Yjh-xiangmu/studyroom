@@ -232,6 +232,15 @@ public class PageController {
         return "sysAdmin/reservation";
     }
 
+    @GetMapping("/sysadmin/attendance")
+    public String sysAdminAttendance(HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null || user.getUserType() != 3) {
+            return "redirect:/login";
+        }
+        return "sysAdmin/attendance";
+    }
+
     @GetMapping("/sysadmin/notice")
     public String sysAdminNotice(HttpSession session) {
         User user = (User) session.getAttribute("user");

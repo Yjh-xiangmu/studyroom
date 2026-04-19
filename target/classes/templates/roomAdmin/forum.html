@@ -45,21 +45,22 @@
                         <li @click="goTo('/admin/reservation')">预约管理</li>
                         <li @click="goTo('/admin/checkin')">出勤管理</li>
                         <li class="active" @click="goTo('/admin/forum')">论坛管理</li>
-                        <li @click="goTo('/admin/notice')">公告上报</li>
+                        <li @click="goTo('/admin/notice')">公告查看</li>
                         <li @click="goTo('/admin/profile')">个人中心</li>
                     </ul>
                 </aside>
                 <main class="admin-main">
                     <h1 class="page-title">论坛管理</h1>
                     <div class="content-card">
-                        <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                             <el-radio-group v-model="filterStatus" @change="fetchPosts">
                                 <el-radio-button :label="null">全部</el-radio-button>
-                                <el-radio-button :label="1">正常</el-radio-button>
                                 <el-radio-button :label="0">待审核</el-radio-button>
+                                <el-radio-button :label="1">已同意</el-radio-button>
                                 <el-radio-button :label="2">已屏蔽</el-radio-button>
+                                <el-radio-button :label="3">已关闭</el-radio-button>
                             </el-radio-group>
-                            <el-button type="primary" @click="showPostDialog">发布帖子</el-button>
+                            <el-input v-model="keyword" placeholder="搜索标题" style="width: 200px;" clearable @change="fetchPosts"></el-input>
                         </div>
                         <div v-loading="loading">
                             <div v-for="post in posts" :key="post.id" class="post-item">
@@ -71,19 +72,20 @@
                                     <span style="margin: 0 10px;">|</span>
                                     <span>回复: {{post.replyCount}}</span>
                                     <span style="margin: 0 10px;">|</span>
-                                    <span>点赞: {{post.likeCount}}</span>
-                                    <span style="margin: 0 10px;">|</span>
-                                    <el-tag v-if="post.status === 1" type="success" size="small">正常</el-tag>
-                                    <el-tag v-else-if="post.status === 0" type="warning" size="small">待审核</el-tag>
-                                    <el-tag v-else type="danger" size="small">已屏蔽</el-tag>
+                                    <el-tag v-if="post.status === 0" type="warning" size="small">待审核</el-tag>
+                                    <el-tag v-else-if="post.status === 1" type="success" size="small">已同意</el-tag>
+                                    <el-tag v-else-if="post.status === 2" type="danger" size="small">已屏蔽</el-tag>
+                                    <el-tag v-else-if="post.status === 3" type="info" size="small">已关闭</el-tag>
                                 </div>
-                                <div class="post-content">{{post.content.substring(0, 200)}}{{post.content.length > 200 ? '...' : ''}}</div>
-                                <div style="margin-top: 12px;">
-                                    <el-button v-if="post.status !== 1" type="success" size="small" @click="updateStatus(post.id, 1)">通过</el-button>
+                                <div class="post-content">{{post.content && post.content.length > 200 ? post.content.substring(0, 200) + '...' : post.content}}</div>
+                                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                                    <el-button v-if="post.status !== 1" type="success" size="small" @click="updateStatus(post.id, 1)">同意</el-button>
                                     <el-button v-if="post.status !== 2" type="danger" size="small" @click="updateStatus(post.id, 2)">屏蔽</el-button>
+                                    <el-button v-if="post.status !== 3" type="warning" size="small" @click="updateStatus(post.id, 3)">关闭</el-button>
                                     <el-button type="primary" size="small" plain @click="viewDetail(post)">查看详情</el-button>
                                 </div>
                             </div>
+                            <el-empty v-if="!loading && posts.length === 0" description="暂无帖子"></el-empty>
                         </div>
                         <div style="margin-top: 20px; text-align: right;">
                             <el-pagination v-model:current-page="page.current" v-model:page-size="page.size" :total="page.total" layout="total, prev, pager, next" @current-change="fetchPosts"></el-pagination>
@@ -96,40 +98,21 @@
         <!-- 帖子详情弹窗 -->
         <el-dialog v-model="detailDialogVisible" title="帖子详情" width="700px">
             <div v-if="selectedPost">
-                <h3>{{selectedPost.title}}</h3>
-                <div style="color: #999; margin: 10px 0;">
-                    作者: {{selectedPost.authorName || '匿名'}} | 
-                    发布时间: {{selectedPost.createTime}} | 
+                <h3 style="margin-bottom: 10px;">{{selectedPost.title}}</h3>
+                <div style="color: #999; margin: 10px 0; font-size: 13px;">
+                    作者: {{selectedPost.authorName || '匿名'}} |
+                    发布时间: {{selectedPost.createTime}} |
                     浏览: {{selectedPost.viewCount}}
                 </div>
-                <div style="line-height: 1.8; padding: 20px; background: #f5f5f5; border-radius: 4px;">
+                <div style="line-height: 1.8; padding: 20px; background: #f5f5f5; border-radius: 4px; white-space: pre-wrap;">
                     {{selectedPost.content}}
                 </div>
+                <div style="margin-top: 16px; display: flex; gap: 8px;">
+                    <el-button v-if="selectedPost.status !== 1" type="success" size="small" @click="updateStatus(selectedPost.id, 1); detailDialogVisible=false">同意</el-button>
+                    <el-button v-if="selectedPost.status !== 2" type="danger" size="small" @click="updateStatus(selectedPost.id, 2); detailDialogVisible=false">屏蔽</el-button>
+                    <el-button v-if="selectedPost.status !== 3" type="warning" size="small" @click="updateStatus(selectedPost.id, 3); detailDialogVisible=false">关闭</el-button>
+                </div>
             </div>
-        </el-dialog>
-        
-        <!-- 发布帖子弹窗 -->
-        <el-dialog v-model="postDialogVisible" title="发布帖子" width="600px">
-            <el-form :model="postForm" label-width="80px">
-                <el-form-item label="标题">
-                    <el-input v-model="postForm.title" placeholder="请输入帖子标题"></el-input>
-                </el-form-item>
-                <el-form-item label="分类">
-                    <el-select v-model="postForm.categoryId" placeholder="选择分类" style="width: 100%;">
-                        <el-option label="通知公告" :value="1"></el-option>
-                        <el-option label="使用指南" :value="2"></el-option>
-                        <el-option label="问题反馈" :value="3"></el-option>
-                        <el-option label="交流讨论" :value="4"></el-option>
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="内容">
-                    <el-input type="textarea" v-model="postForm.content" :rows="8" placeholder="请输入帖子内容"></el-input>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="postDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="submitPost" :loading="posting">发布</el-button>
-            </template>
         </el-dialog>
     </div>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -143,20 +126,18 @@
                 const loading = ref(false);
                 const posts = ref([]);
                 const filterStatus = ref(null);
+                const keyword = ref('');
                 const page = reactive({ current: 1, size: 10, total: 0 });
                 const detailDialogVisible = ref(false);
                 const selectedPost = ref(null);
-                
-                const postDialogVisible = ref(false);
-                const posting = ref(false);
-                const postForm = reactive({ title: '', content: '', categoryId: 1 });
 
                 const fetchPosts = async () => {
                     loading.value = true;
                     try {
                         let url = `/api/roomadmin/posts?page=${page.current}&size=${page.size}`;
                         if (filterStatus.value !== null) url += `&status=${filterStatus.value}`;
-                        
+                        if (keyword.value) url += `&keyword=${encodeURIComponent(keyword.value)}`;
+
                         const res = await axios.get(url);
                         if (res.data.code === 200) {
                             posts.value = res.data.data.records;
@@ -167,10 +148,11 @@
                 };
 
                 const updateStatus = async (id, status) => {
+                    const labels = { 1: '同意', 2: '屏蔽', 3: '关闭' };
                     try {
                         const res = await axios.put(`/api/roomadmin/post/${id}/status?status=${status}`);
                         if (res.data.code === 200) {
-                            ElMessage.success('操作成功');
+                            ElMessage.success(`操作成功：${labels[status]}`);
                             fetchPosts();
                         } else ElMessage.error(res.data.message || '操作失败');
                     } catch (e) { ElMessage.error('操作失败'); }
@@ -180,49 +162,14 @@
                     selectedPost.value = post;
                     detailDialogVisible.value = true;
                 };
-                
-                const showPostDialog = () => {
-                    postForm.title = '';
-                    postForm.content = '';
-                    postForm.categoryId = 1;
-                    postDialogVisible.value = true;
-                };
-                
-                const submitPost = async () => {
-                    if (!postForm.title.trim()) {
-                        ElMessage.warning('请输入标题');
-                        return;
-                    }
-                    if (!postForm.content.trim()) {
-                        ElMessage.warning('请输入内容');
-                        return;
-                    }
-                    
-                    posting.value = true;
-                    try {
-                        const res = await axios.post('/api/roomadmin/post', postForm);
-                        if (res.data.code === 200) {
-                            ElMessage.success('发布成功');
-                            postDialogVisible.value = false;
-                            fetchPosts();
-                        } else {
-                            ElMessage.error(res.data.message || '发布失败');
-                        }
-                    } catch (e) {
-                        ElMessage.error('发布失败');
-                    } finally {
-                        posting.value = false;
-                    }
-                };
 
                 const goTo = (path) => { window.location.href = path; };
                 const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
 
                 onMounted(fetchPosts);
 
-                return { loading, posts, filterStatus, page, detailDialogVisible, selectedPost, 
-                         postDialogVisible, postForm, posting,
-                         fetchPosts, updateStatus, viewDetail, showPostDialog, submitPost, goTo, logout };
+                return { loading, posts, filterStatus, keyword, page, detailDialogVisible, selectedPost,
+                         fetchPosts, updateStatus, viewDetail, goTo, logout };
             }
         }).use(ElementPlus).mount('#app');
     </script>

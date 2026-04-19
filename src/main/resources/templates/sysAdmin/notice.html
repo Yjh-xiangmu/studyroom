@@ -40,7 +40,7 @@
                         <li @click="goTo('/sysadmin/dashboard')">控制台</li>
                         <li @click="goTo('/sysadmin/user')">用户管理</li>
                         <li @click="goTo('/sysadmin/studyroom')">自习室管理</li>
-                        <li @click="goTo('/sysadmin/reservation')">预约管理</li>
+                        <li @click="goTo('/sysadmin/attendance')">出勤管理</li>
                         <li class="active" @click="goTo('/sysadmin/notice')">公告管理</li>
                         <li @click="goTo('/sysadmin/forum')">论坛管理</li>
                         <li @click="goTo('/sysadmin/statistics')">数据统计</li>
@@ -52,11 +52,8 @@
                         <div class="search-bar">
                             <el-input v-model="searchForm.title" placeholder="公告标题" style="width: 200px;" clearable></el-input>
                             <el-select v-model="searchForm.status" placeholder="状态" style="width: 140px;" clearable>
-                                <el-option label="草稿(待审核)" :value="0"></el-option>
-                                <el-option label="一级审核通过" :value="1"></el-option>
                                 <el-option label="已发布" :value="2"></el-option>
                                 <el-option label="已关闭" :value="3"></el-option>
-                                <el-option label="已屏蔽" :value="4"></el-option>
                             </el-select>
                             <el-button type="primary" @click="handleSearch">查询</el-button>
                             <el-button @click="resetSearch">重置</el-button>
@@ -65,13 +62,7 @@
                         <el-table :data="noticeList" v-loading="loading" border>
                             <el-table-column prop="id" label="ID" width="60"></el-table-column>
                             <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip></el-table-column>
-                            <el-table-column prop="publisherName" label="发布人" width="120">
-                                <template #default="scope">
-                                    <span>{{scope.row.publisherName}}</span>
-                                    <el-tag v-if="scope.row.publisherType === 2" size="small" type="warning" style="margin-left: 5px;">自习室管理员</el-tag>
-                                    <el-tag v-else-if="scope.row.publisherType === 1" size="small" type="success" style="margin-left: 5px;">系统管理员</el-tag>
-                                </template>
-                            </el-table-column>
+                            <el-table-column prop="publisherName" label="发布人" width="120"></el-table-column>
                             <el-table-column prop="viewCount" label="浏览量" width="80"></el-table-column>
                             <el-table-column prop="isTop" label="置顶" width="80">
                                 <template #default="scope">
@@ -79,23 +70,21 @@
                                     <span v-else>--</span>
                                 </template>
                             </el-table-column>
-                            <el-table-column prop="status" label="状态" width="120">
+                            <el-table-column prop="status" label="状态" width="100">
                                 <template #default="scope">
-                                    <el-tag v-if="scope.row.status === 0" type="info">草稿(待审核)</el-tag>
-                                    <el-tag v-else-if="scope.row.status === 1" type="warning">一级审核通过</el-tag>
-                                    <el-tag v-else-if="scope.row.status === 2" type="success">已发布</el-tag>
+                                    <el-tag v-if="scope.row.status === 2" type="success">已发布</el-tag>
                                     <el-tag v-else-if="scope.row.status === 3" type="info">已关闭</el-tag>
                                     <el-tag v-else-if="scope.row.status === 4" type="danger">已屏蔽</el-tag>
+                                    <el-tag v-else type="warning">草稿</el-tag>
                                 </template>
                             </el-table-column>
                             <el-table-column prop="publishTime" label="发布时间" width="160"></el-table-column>
-                            <el-table-column label="操作" width="320" fixed="right">
+                            <el-table-column label="操作" width="200" fixed="right">
                                 <template #default="scope">
                                     <el-button type="primary" size="small" @click="handleView(scope.row)">查看</el-button>
-                                    <el-button v-if="scope.row.status === 0" type="success" size="small" @click="handleAudit1(scope.row)">通过</el-button>
-                                    <el-button v-if="scope.row.status === 1" type="success" size="small" @click="handlePublish(scope.row)">发布</el-button>
-                                    <el-button v-if="scope.row.status === 0 || scope.row.status === 1 || scope.row.status === 2" type="warning" size="small" @click="handleClose(scope.row)">关闭</el-button>
-                                    <el-button v-if="scope.row.status !== 4" type="danger" size="small" @click="handleBlock(scope.row)">屏蔽</el-button>
+                                    <el-button v-if="scope.row.status === 2" type="warning" size="small" @click="handleClose(scope.row)">关闭</el-button>
+                                    <el-button v-if="scope.row.status === 3" type="success" size="small" @click="handleReopen(scope.row)">重新发布</el-button>
+                                    <el-button type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
                                 </template>
                             </el-table-column>
                         </el-table>
@@ -184,49 +173,41 @@
                         await formRef.value.validate();
                         const url = isEdit.value ? `/sysadmin/notice/${form.id}` : '/sysadmin/notice';
                         const method = isEdit.value ? 'put' : 'post';
-                        const res = await axios[method](url, { ...form, status: 0 });
+                        const res = await axios[method](url, { ...form });
                         if (res.data.code === 200) { ElMessage.success('保存成功'); dialogVisible.value = false; fetchList(); }
                         else ElMessage.error(res.data.message || '保存失败');
                     } catch (e) { if (e !== 'cancel') ElMessage.error('保存失败'); }
                 };
-                const handleAudit1 = async (row) => {
-                    try {
-                        await ElMessageBox.confirm('确定一级审核通过该公告?', '提示', { type: 'warning' });
-                        const res = await axios.put(`/sysadmin/notice/${row.id}/audit1`);
-                        if (res.data.code === 200) { ElMessage.success('一级审核通过'); fetchList(); }
-                        else ElMessage.error(res.data.message || '审核失败');
-                    } catch (e) { if (e !== 'cancel') ElMessage.error('审核失败'); }
-                };
-                const handlePublish = async (row) => {
-                    try {
-                        await ElMessageBox.confirm('确定发布该公告?', '提示', { type: 'warning' });
-                        const res = await axios.put(`/sysadmin/notice/${row.id}/publish`);
-                        if (res.data.code === 200) { ElMessage.success('发布成功'); fetchList(); }
-                        else ElMessage.error(res.data.message || '发布失败');
-                    } catch (e) { if (e !== 'cancel') ElMessage.error('发布失败'); }
-                };
                 const handleClose = async (row) => {
                     try {
-                        await ElMessageBox.confirm('确定关闭该公告?', '提示', { type: 'warning' });
+                        await ElMessageBox.confirm('确定关闭该公告？关闭后用户将看不到。', '提示', { type: 'warning' });
                         const res = await axios.put(`/sysadmin/notice/${row.id}/close`);
-                        if (res.data.code === 200) { ElMessage.success('关闭成功'); fetchList(); }
-                        else ElMessage.error(res.data.message || '关闭失败');
-                    } catch (e) { if (e !== 'cancel') ElMessage.error('关闭失败'); }
+                        if (res.data.code === 200) { ElMessage.success('已关闭'); fetchList(); }
+                        else ElMessage.error(res.data.message || '操作失败');
+                    } catch (e) { if (e !== 'cancel') ElMessage.error('操作失败'); }
                 };
-                const handleBlock = async (row) => {
+                const handleReopen = async (row) => {
                     try {
-                        await ElMessageBox.confirm('确定屏蔽该公告?屏蔽后用户将无法看到该公告。', '警告', { type: 'warning' });
-                        const res = await axios.put(`/sysadmin/notice/${row.id}/block`);
-                        if (res.data.code === 200) { ElMessage.success('屏蔽成功'); fetchList(); }
-                        else ElMessage.error(res.data.message || '屏蔽失败');
-                    } catch (e) { if (e !== 'cancel') ElMessage.error('屏蔽失败'); }
+                        await ElMessageBox.confirm('确定重新发布该公告？', '提示', { type: 'warning' });
+                        const res = await axios.put(`/sysadmin/notice/${row.id}/publish`);
+                        if (res.data.code === 200) { ElMessage.success('已重新发布'); fetchList(); }
+                        else ElMessage.error(res.data.message || '操作失败');
+                    } catch (e) { if (e !== 'cancel') ElMessage.error('操作失败'); }
+                };
+                const handleDelete = async (row) => {
+                    try {
+                        await ElMessageBox.confirm('确定删除该公告？此操作不可恢复。', '警告', { type: 'warning' });
+                        const res = await axios.delete(`/sysadmin/notice/${row.id}`);
+                        if (res.data.code === 200) { ElMessage.success('已删除'); fetchList(); }
+                        else ElMessage.error(res.data.message || '删除失败');
+                    } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败'); }
                 };
                 const handleSizeChange = (val) => { page.size = val; fetchList(); };
                 const handleCurrentChange = (val) => { page.current = val; fetchList(); };
                 const goTo = (path) => { window.location.href = path; };
                 const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
                 onMounted(() => { fetchList(); });
-                return { loading, noticeList, dialogVisible, viewDialogVisible, currentNotice, isEdit, formRef, form, rules, searchForm, page, handleSearch, resetSearch, handleAdd, handleView, handleSave, handleAudit1, handlePublish, handleClose, handleBlock, handleSizeChange, handleCurrentChange, goTo, logout };
+                return { loading, noticeList, dialogVisible, viewDialogVisible, currentNotice, isEdit, formRef, form, rules, searchForm, page, handleSearch, resetSearch, handleAdd, handleView, handleSave, handleClose, handleReopen, handleDelete, handleSizeChange, handleCurrentChange, goTo, logout };
             }
         }).use(ElementPlus).mount('#app');
     </script>

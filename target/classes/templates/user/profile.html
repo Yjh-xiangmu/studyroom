@@ -29,6 +29,10 @@
         .stats-card { background: #f5f7fa; padding: 20px; border-radius: 8px; text-align: center; }
         .stats-value { font-size: 24px; font-weight: 600; color: #0068DD; }
         .stats-label { color: #666; font-size: 14px; margin-top: 8px; }
+        .violation-card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 24px; }
+        .violation-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .violation-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+        .v-stat-card { padding: 16px; border-radius: 8px; text-align: center; }
         .chart-card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 24px; }
         .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
         .chart-title { font-size: 16px; font-weight: 600; color: #1f2f3d; }
@@ -75,7 +79,7 @@
                             <p>{{currentUser?.email || '未设置邮箱'}} | {{currentUser?.phone || '未设置手机'}}</p>
                         </div>
                     </div>
-                    
+
                     <div class="stats-row">
                         <div class="stats-card">
                             <div class="stats-value">{{stats.totalReservations}}</div>
@@ -94,9 +98,64 @@
                             <div class="stats-label">连续天数</div>
                         </div>
                     </div>
-                    
+
                     <el-divider></el-divider>
-                    
+
+                    <!-- 我的记录 - 违约与签到统计 -->
+                    <div class="violation-card">
+                        <div class="violation-header">
+                            <h3 style="color: #1f2f3d;">我的记录</h3>
+                            <el-tag v-if="violationInfo.isBanned" type="danger">⚠️ 您已被禁止预约</el-tag>
+                            <el-tag v-else type="success">预约状态正常</el-tag>
+                        </div>
+                        <el-alert v-if="violationInfo.isBanned"
+                            type="error"
+                            title="您的违约次数已超过限制，目前无法预约座位。如有异议请通过论坛或联系自习室管理员申诉。"
+                            :closable="false" style="margin-bottom: 16px;"></el-alert>
+                        <div class="violation-stats">
+                            <div class="v-stat-card" style="background: #fff7e6; border: 1px solid #ffd591;">
+                                <div style="font-size: 28px; font-weight: 700; color: #d46b08;">{{violationInfo.violationCount}}</div>
+                                <div style="color: #8c5000; font-size: 14px; margin-top: 8px;">累计违约次数</div>
+                                <div style="color: #999; font-size: 12px; margin-top: 4px;">上限 {{violationInfo.maxViolation}} 次</div>
+                            </div>
+                            <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
+                                <div style="font-size: 28px; font-weight: 700; color: #389e0d;">{{violationInfo.continuousCheckinDays}}</div>
+                                <div style="color: #135200; font-size: 14px; margin-top: 8px;">连续签到天数</div>
+                                <div style="color: #999; font-size: 12px; margin-top: 4px;">奖励线 {{violationInfo.rewardDays}} 天</div>
+                            </div>
+                            <div class="v-stat-card" :style="violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? 'background: #e6fffb; border: 1px solid #87e8de;' : 'background: #f5f7fa; border: 1px solid #e8e8e8;'">
+                                <div style="font-size: 28px; font-weight: 700; color: #0068DD;">{{violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? '✓' : violationInfo.rewardDays - violationInfo.continuousCheckinDays}}</div>
+                                <div style="font-size: 14px; margin-top: 8px;" :style="violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? 'color: #006d75;' : 'color: #666;'">
+                                    {{violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? '可加德育分' : '天后可加德育分'}}
+                                </div>
+                                <div style="color: #999; font-size: 12px; margin-top: 4px;">连续打卡积累</div>
+                            </div>
+                        </div>
+
+                        <!-- 违约记录列表 -->
+                        <div v-if="violationRecords.length > 0">
+                            <h4 style="margin-bottom: 12px; color: #ff4d4f;">违约记录</h4>
+                            <el-table :data="violationRecords" border size="small">
+                                <el-table-column prop="roomName" label="自习室" width="150" show-overflow-tooltip></el-table-column>
+                                <el-table-column prop="seatNumber" label="座位" width="70"></el-table-column>
+                                <el-table-column prop="reservationDate" label="预约日期" width="110"></el-table-column>
+                                <el-table-column label="时段" width="120">
+                                    <template #default="scope">{{scope.row.startTime}} - {{scope.row.endTime}}</template>
+                                </el-table-column>
+                                <el-table-column label="申诉状态" width="100">
+                                    <template #default="scope">
+                                        <el-tag v-if="scope.row.appealStatus === 0" type="info" size="small">未申诉</el-tag>
+                                        <el-tag v-else-if="scope.row.appealStatus === 1" type="warning" size="small">申诉中</el-tag>
+                                        <el-tag v-else-if="scope.row.appealStatus === 2" type="success" size="small">申诉通过</el-tag>
+                                        <el-tag v-else-if="scope.row.appealStatus === 3" type="danger" size="small">申诉驳回</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="createTime" label="记录时间" min-width="140"></el-table-column>
+                            </el-table>
+                        </div>
+                        <el-empty v-else description="暂无违约记录，继续保持！" :image-size="60"></el-empty>
+                    </div>
+
                     <!-- 学习时长统计图表 -->
                     <div class="chart-card">
                         <div class="chart-header">
@@ -108,9 +167,9 @@
                         </div>
                         <div id="studyChart" style="height: 280px;"></div>
                     </div>
-                    
+
                     <el-divider></el-divider>
-                    
+
                     <h3 style="margin-bottom: 24px;">编辑资料</h3>
                     <el-form :model="form" label-width="100px">
                         <el-form-item label="用户名">
@@ -146,6 +205,8 @@
                 const chartType = ref('week');
                 const stats = reactive({ totalReservations: 0, totalHours: 0, totalDays: 0, streak: 0 });
                 const form = reactive({ username: '', realName: '', email: '', phone: '' });
+                const violationInfo = reactive({ violationCount: 0, continuousCheckinDays: 0, isBanned: false, maxViolation: 3, rewardDays: 7 });
+                const violationRecords = ref([]);
                 let studyChart = null;
 
                 const fetchUser = async () => {
@@ -162,6 +223,16 @@
                     try {
                         const res = await axios.get('/api/user/stats');
                         if (res.data.code === 200) Object.assign(stats, res.data.data);
+                    } catch (e) {}
+                };
+
+                const fetchViolationInfo = async () => {
+                    try {
+                        const res = await axios.get('/api/user/violation-info');
+                        if (res.data.code === 200) {
+                            Object.assign(violationInfo, res.data.data);
+                            violationRecords.value = res.data.data.records || [];
+                        }
                     } catch (e) {}
                 };
 
@@ -213,10 +284,11 @@
                 onMounted(() => {
                     fetchUser();
                     fetchStats();
+                    fetchViolationInfo();
                     nextTick(() => fetchChart('week'));
                 });
 
-                return { currentUser, saving, stats, form, chartType, saveProfile, switchChart, logout, UserFilled };
+                return { currentUser, saving, stats, form, chartType, violationInfo, violationRecords, saveProfile, switchChart, logout, UserFilled };
             }
         }).use(ElementPlus).mount('#app');
     </script>
