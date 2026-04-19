@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 高校自习室智能管理系统</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <!-- Element Plus Icons -->
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <!-- Axios -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+        }
+        
+        .login-page {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0068DD 0%, #0050B3 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+        
+        .login-box {
+            background: #fff;
+            border-radius: 16px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .login-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #132842;
+            margin-bottom: 8px;
+        }
+        
+        .login-header p {
+            color: #595959;
+            font-size: 16px;
+        }
+        
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            color: #595959;
+            font-size: 14px;
+        }
+        
+        .login-footer a {
+            color: #0068DD;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="login-page">
+        <div class="login-container">
+            <div class="login-box">
+                <div class="login-header">
+                    <h1>高校自习室智能管理系统</h1>
+                    <p>欢迎登录</p>
+                </div>
+                
+                <el-alert
+                    v-if="errorMsg"
+                    :title="errorMsg"
+                    type="error"
+                    show-icon
+                    closable
+                    @close="errorMsg = ''"
+                    style="margin-bottom: 20px;">
+                </el-alert>
+                
+                <el-form 
+                    :model="loginForm" 
+                    :rules="rules"
+                    ref="loginFormRef"
+                    @keyup.enter="handleLogin">
+                    
+                    <el-form-item prop="username">
+                        <el-input
+                            v-model="loginForm.username"
+                            placeholder="请输入用户名"
+                            size="large"
+                            :prefix-icon="User"
+                            clearable>
+                        </el-input>
+                    </el-form-item>
+                    
+                    <el-form-item prop="password">
+                        <el-input
+                            v-model="loginForm.password"
+                            type="password"
+                            placeholder="请输入密码"
+                            size="large"
+                            :prefix-icon="Lock"
+                            show-password
+                            clearable>
+                        </el-input>
+                    </el-form-item>
+                    
+                    <el-form-item>
+                        <el-checkbox v-model="loginForm.rememberMe">记住密码</el-checkbox>
+                    </el-form-item>
+                    
+                    <el-form-item>
+                        <el-button
+                            type="primary"
+                            size="large"
+                            style="width: 100%; height: 48px; font-size: 16px; font-weight: 600; border-radius: 8px;"
+                            :loading="loading"
+                            @click="handleLogin">
+                            登 录
+                        </el-button>
+                    </el-form-item>
+                </el-form>
+                
+                <div class="login-footer">
+                    <span>还没有账号？</span>
+                    <a th:href="@{/register}">立即注册</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive } = Vue;
+        const { ElMessage } = ElementPlus;
+        const { User, Lock } = ElementPlusIconsVue;
+
+        createApp({
+            setup() {
+                const loginFormRef = ref(null);
+                const loading = ref(false);
+                const errorMsg = ref('');
+                
+                const loginForm = reactive({
+                    username: '',
+                    password: '',
+                    rememberMe: false
+                });
+                
+                const rules = {
+                    username: [
+                        { required: true, message: '请输入用户名', trigger: 'blur' },
+                        { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
+                    ],
+                    password: [
+                        { required: true, message: '请输入密码', trigger: 'blur' },
+                        { min: 4, max: 20, message: '长度在 4 到 20 个字符', trigger: 'blur' }
+                    ]
+                };
+                
+                const handleLogin = async () => {
+                    if (!loginFormRef.value) return;
+                    
+                    await loginFormRef.value.validate((valid) => {
+                        if (valid) {
+                            doLogin();
+                        }
+                    });
+                };
+                
+                const doLogin = async () => {
+                    loading.value = true;
+                    errorMsg.value = '';
+                    
+                    try {
+                        const response = await axios.post('/auth/login', {
+                            username: loginForm.username,
+                            password: loginForm.password
+                        });
+                        
+                        if (response.data.code === 200) {
+                            ElMessage.success('登录成功');
+                            
+                            // 保存token
+                            const token = response.data.data.token;
+                            document.cookie = `token=${token}; path=/`;
+                            
+                            // 根据角色跳转
+                            const roles = response.data.data.roles;
+                            if (roles.includes('ROLE_SYS_ADMIN')) {
+                                window.location.href = '/sysadmin/dashboard';
+                            } else if (roles.includes('ROLE_ROOM_ADMIN')) {
+                                window.location.href = '/admin/dashboard';
+                            } else {
+                                window.location.href = '/home';
+                            }
+                        } else {
+                            errorMsg.value = response.data.message || '登录失败';
+                        }
+                    } catch (error) {
+                        console.error('登录错误:', error);
+                        errorMsg.value = error.response?.data?.message || '登录失败，请检查用户名和密码';
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+                
+                return {
+                    loginForm,
+                    loginFormRef,
+                    rules,
+                    loading,
+                    errorMsg,
+                    handleLogin,
+                    User,
+                    Lock
+                };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

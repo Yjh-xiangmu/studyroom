@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的预约 - 高校自习室智能管理系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f7fa; }
+        .navbar { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 0 48px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+        .navbar-brand { font-size: 22px; font-weight: 700; color: #0068DD; text-decoration: none; }
+        .nav-menu { display: flex; gap: 32px; }
+        .nav-item { color: #333; text-decoration: none; font-weight: 500; line-height: 64px; }
+        .nav-item:hover, .nav-item.active { color: #0068DD; }
+        .main-content { padding-top: 64px; min-height: 100vh; padding-bottom: 40px; }
+        .reservation-container { max-width: 1000px; margin: 24px auto; padding: 0 24px; }
+        .reservation-card { background: #fff; border-radius: 8px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .reservation-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .reservation-title { font-size: 18px; font-weight: 600; }
+        .reservation-status { padding: 4px 12px; border-radius: 4px; font-size: 12px; }
+        .status-0 { background: #e6f7ff; color: #1890ff; }
+        .status-1 { background: #f6ffed; color: #52c41a; }
+        .status-2 { background: #f5f5f5; color: #999; }
+        .status-3 { background: #fff1f0; color: #ff4d4f; }
+        .reservation-info { display: flex; gap: 24px; color: #666; margin-bottom: 16px; }
+        .reservation-info span { display: flex; align-items: center; gap: 6px; }
+        .empty-state { text-align: center; padding: 60px; color: #999; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar">
+            <a href="/" class="navbar-brand">自习室管理系统</a>
+            <div class="nav-menu">
+                <a href="/" class="nav-item">首页</a>
+                <a href="/studyroom" class="nav-item">自习室</a>
+                <a href="/reservation" class="nav-item active">我的预约</a>
+                <a href="/checkin" class="nav-item">签到打卡</a>
+                <a href="/forum" class="nav-item">社区论坛</a>
+            </div>
+            <div class="nav-user">
+                <el-dropdown v-if="currentUser">
+                    <span class="el-dropdown-link">
+                        <el-avatar :size="32" :icon="UserFilled"></el-avatar>
+                        <span style="margin-left: 8px;">{{currentUser.realName || currentUser.username}}</span>
+                    </span>
+                    <template #dropdown>
+                        <el-dropdown-menu>
+                            <el-dropdown-item><a href="/profile" style="text-decoration: none; color: inherit;">个人中心</a></el-dropdown-item>
+                            <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                        </el-dropdown-menu>
+                    </template>
+                </el-dropdown>
+                <a v-else href="/login" style="color: #333; text-decoration: none;">登录</a>
+            </div>
+        </nav>
+
+        <div class="main-content">
+            <div class="reservation-container">
+                <h2 style="margin-bottom: 24px;">我的预约</h2>
+                <div v-if="loading" style="text-align: center; padding: 40px;">
+                    <el-icon :size="32" class="is-loading"><Loading /></el-icon>
+                </div>
+                <div v-else-if="reservations.length === 0" class="empty-state">
+                    <el-icon :size="64" color="#ddd"><Document /></el-icon>
+                    <p style="margin-top: 16px;">暂无预约记录</p>
+                    <el-button type="primary" style="margin-top: 16px;" @click="goToStudyRoom">去预约</el-button>
+                </div>
+                <div v-else>
+                    <div class="reservation-card" v-for="item in reservations" :key="item.id">
+                        <div class="reservation-header">
+                            <span class="reservation-title">{{item.roomName}} - {{item.seatNumber}}</span>
+                            <span class="reservation-status" :class="'status-' + item.status">{{getStatusText(item.status)}}</span>
+                        </div>
+                        <div class="reservation-info">
+                            <span><el-icon><Calendar /></el-icon>{{item.reservationDate}}</span>
+                            <span><el-icon><Clock /></el-icon>{{item.startTime}} - {{item.endTime}}</span>
+                            <span><el-icon><Location /></el-icon>{{item.building}}</span>
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <el-button v-if="item.status === 0" type="primary" size="small" @click="checkIn(item)">签到</el-button>
+                            <el-button v-if="item.status === 1" type="success" size="small" @click="checkOut(item)">签退</el-button>
+                            <el-button v-if="item.status === 0" type="danger" size="small" @click="cancelReserve(item)">取消</el-button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+        const { UserFilled, Loading, Document, Calendar, Clock, Location } = ElementPlusIconsVue;
+
+        createApp({
+            setup() {
+                const currentUser = ref(null);
+                const loading = ref(false);
+                const reservations = ref([]);
+
+                const fetchUser = async () => {
+                    try {
+                        const res = await axios.get('/api/user/info');
+                        if (res.data.code === 200) currentUser.value = res.data.data;
+                    } catch (e) {}
+                };
+
+                const fetchReservations = async () => {
+                    loading.value = true;
+                    try {
+                        const res = await axios.get('/api/reservation/my');
+                        if (res.data.code === 200) reservations.value = res.data.data;
+                    } catch (e) { ElMessage.error('获取预约记录失败'); }
+                    finally { loading.value = false; }
+                };
+
+                const getStatusText = (status) => {
+                    const map = { 0: '待签到', 1: '已签到', 2: '已完成', 3: '已取消' };
+                    return map[status] || '未知';
+                };
+
+                const goToStudyRoom = () => { window.location.href = '/studyroom'; };
+
+                const checkIn = async (item) => {
+                    try {
+                        const res = await axios.post(`/api/reservation/${item.id}/checkin`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('签到成功');
+                            fetchReservations();
+                        } else ElMessage.error(res.data.message || '签到失败');
+                    } catch (e) { ElMessage.error('签到失败'); }
+                };
+
+                const checkOut = async (item) => {
+                    try {
+                        const res = await axios.post(`/api/reservation/${item.id}/checkout`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('签退成功');
+                            fetchReservations();
+                        } else ElMessage.error(res.data.message || '签退失败');
+                    } catch (e) { ElMessage.error('签退失败'); }
+                };
+
+                const cancelReserve = async (item) => {
+                    try {
+                        await ElMessageBox.confirm('确定取消该预约?', '提示', { type: 'warning' });
+                        const res = await axios.post(`/api/reservation/${item.id}/cancel`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('取消成功');
+                            fetchReservations();
+                        } else ElMessage.error(res.data.message || '取消失败');
+                    } catch (e) { if (e !== 'cancel') ElMessage.error('取消失败'); }
+                };
+
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => { fetchUser(); fetchReservations(); });
+
+                return { currentUser, loading, reservations, getStatusText, goToStudyRoom, checkIn, checkOut, cancelReserve, logout, UserFilled, Loading, Document, Calendar, Clock, Location };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

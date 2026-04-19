@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${notice.title} + ' - 高校自习室智能管理系统'">公告详情</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f8fc; }
+        .navbar {
+            background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            padding: 0 48px; height: 75px; display: flex; align-items: center;
+            justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+        }
+        .navbar-brand { font-size: 26px; font-weight: 700; color: #0068DD; text-decoration: none; }
+        .nav-menu { display: flex; gap: 40px; }
+        .nav-item { color: #132842; text-decoration: none; font-weight: 500; line-height: 75px; }
+        .nav-item:hover { color: #0068DD; }
+        .main-content { max-width: 900px; margin: 0 auto; padding: 100px 24px 60px; }
+        .breadcrumb { margin-bottom: 24px; color: #999; font-size: 14px; }
+        .breadcrumb a { color: #0068DD; text-decoration: none; }
+        .notice-card {
+            background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 48px 60px;
+        }
+        .notice-title { font-size: 28px; font-weight: 700; color: #132842; margin-bottom: 20px; line-height: 1.4; }
+        .notice-meta {
+            display: flex; gap: 24px; color: #999; font-size: 14px;
+            padding-bottom: 24px; border-bottom: 1px solid #e8e8e8; margin-bottom: 32px;
+        }
+        .notice-meta span { display: flex; align-items: center; gap: 6px; }
+        .notice-content { font-size: 16px; line-height: 2; color: #333; white-space: pre-wrap; }
+        .back-btn { margin-top: 40px; }
+        footer { background: #132842; color: #fff; padding: 30px 0; text-align: center; margin-top: 60px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">自习室管理系统</a>
+        <div class="nav-menu">
+            <a href="/" class="nav-item">首页</a>
+            <a href="/studyroom" class="nav-item">自习室</a>
+            <a th:if="${currentUser != null}" href="/reservation" class="nav-item">我的预约</a>
+            <a th:if="${currentUser != null}" href="/checkin" class="nav-item">签到打卡</a>
+            <a th:if="${currentUser != null}" href="/forum" class="nav-item">社区论坛</a>
+        </div>
+        <a th:if="${currentUser == null}" href="/login" class="nav-item" style="color:#0068DD;">登录</a>
+        <span th:if="${currentUser != null}" style="color:#132842;font-weight:500;" th:text="${currentUser.realName ?: currentUser.username}">用户</span>
+    </nav>
+
+    <div class="main-content">
+        <div class="breadcrumb">
+            <a href="/">首页</a> &gt; 公告详情
+        </div>
+        <div class="notice-card">
+            <h1 class="notice-title" th:text="${notice.title}">公告标题</h1>
+            <div class="notice-meta">
+                <span>发布人：<strong th:text="${notice.publisherName ?: '系统'}">管理员</strong></span>
+                <span>发布时间：<strong th:text="${#temporals.format(notice.createTime, 'yyyy-MM-dd HH:mm')}">2026-03-19</strong></span>
+                <span>浏览：<strong th:text="${notice.viewCount}">0</strong></span>
+            </div>
+            <div class="notice-content" th:text="${notice.content}">公告内容</div>
+            <div class="back-btn">
+                <a href="/">
+                    <el-button>返回首页</el-button>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 高校自习室智能管理系统. All rights reserved.</p>
+    </footer>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script>
+        const { createApp } = Vue;
+        createApp({}).use(ElementPlus).mount('body');
+    </script>
+</body>
+</html>

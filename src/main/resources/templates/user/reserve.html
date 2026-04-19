@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>预约座位 - 高校自习室智能管理系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f7fa; }
+        .navbar { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 0 48px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+        .navbar-brand { font-size: 22px; font-weight: 700; color: #0068DD; text-decoration: none; }
+        .nav-menu { display: flex; gap: 32px; }
+        .nav-item { color: #333; text-decoration: none; font-weight: 500; line-height: 64px; }
+        .nav-item:hover, .nav-item.active { color: #0068DD; }
+        .main-content { padding-top: 64px; min-height: 100vh; padding-bottom: 40px; }
+        .reserve-wrapper { max-width: 1200px; margin: 40px auto; padding: 0 24px; display: flex; gap: 24px; }
+        .reserve-main { flex: 1; }
+        .reserve-sidebar { width: 380px; }
+        .reserve-card { background: #fff; border-radius: 8px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .reserve-title { font-size: 24px; font-weight: 600; margin-bottom: 24px; text-align: center; }
+        .info-item { display: flex; margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 4px; }
+        .info-label { color: #666; width: 100px; }
+        .info-value { font-weight: 500; flex: 1; }
+        
+        /* 右侧预约列表样式 */
+        .occupied-card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .occupied-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #333; }
+        .occupied-subtitle { font-size: 14px; color: #666; margin-bottom: 16px; }
+        .occupied-list { max-height: 500px; overflow-y: auto; }
+        .occupied-item { 
+            padding: 12px; 
+            margin-bottom: 12px; 
+            background: #fff2f0; 
+            border: 1px solid #ffccc7; 
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .occupied-item.my-reservation {
+            background: #e6f7ff;
+            border-color: #91d5ff;
+        }
+        .occupied-info { flex: 1; }
+        .occupied-user { font-weight: 500; color: #333; margin-bottom: 4px; }
+        .occupied-time { font-size: 13px; color: #ff4d4f; }
+        .occupied-item.my-reservation .occupied-time { color: #1890ff; }
+        .occupied-status { 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 12px;
+        }
+        .status-pending { background: #fff7e6; color: #fa8c16; }
+        .status-checked { background: #f6ffed; color: #52c41a; }
+        .status-expired { background: #f5f5f5; color: #999; }
+        .empty-occupied { text-align: center; padding: 40px; color: #999; }
+        .time-visual { margin-top: 16px; padding: 16px; background: #fafafa; border-radius: 8px; }
+        .time-visual-title { font-size: 13px; color: #666; margin-bottom: 12px; }
+        .time-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; background: #e8e8e8; }
+        .time-segment { flex: 1; border-right: 1px solid #fff; }
+        .time-segment.occupied { background: #ff4d4f; }
+        .time-segment.free { background: #52c41a; }
+        .time-segment:last-child { border-right: none; }
+        .time-labels { display: flex; justify-content: space-between; font-size: 11px; color: #999; margin-top: 4px; }
+        .conflict-warning { 
+            margin-top: 16px; 
+            padding: 12px 16px; 
+            background: #fff2f0; 
+            border: 1px solid #ffccc7; 
+            border-radius: 4px;
+            color: #ff4d4f;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar">
+            <a href="/" class="navbar-brand">自习室管理系统</a>
+            <div class="nav-menu">
+                <a href="/" class="nav-item">首页</a>
+                <a href="/studyroom" class="nav-item active">自习室</a>
+                <a href="/reservation" class="nav-item">我的预约</a>
+                <a href="/checkin" class="nav-item">签到打卡</a>
+                <a href="/forum" class="nav-item">社区论坛</a>
+            </div>
+            <div class="nav-user">
+                <el-dropdown v-if="currentUser">
+                    <span class="el-dropdown-link">
+                        <el-avatar :size="32" :icon="UserFilled"></el-avatar>
+                        <span style="margin-left: 8px;">{{currentUser.realName || currentUser.username}}</span>
+                    </span>
+                    <template #dropdown>
+                        <el-dropdown-menu>
+                            <el-dropdown-item><a href="/profile" style="text-decoration: none; color: inherit;">个人中心</a></el-dropdown-item>
+                            <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                        </el-dropdown-menu>
+                    </template>
+                </el-dropdown>
+                <a v-else href="/login" style="color: #333; text-decoration: none;">登录</a>
+            </div>
+        </nav>
+
+        <div class="main-content">
+            <div class="reserve-wrapper">
+                <!-- 左侧预约表单 -->
+                <div class="reserve-main">
+                    <div class="reserve-card">
+                        <div class="reserve-title">确认预约信息</div>
+                        <div class="info-item">
+                            <span class="info-label">自习室</span>
+                            <span class="info-value">{{room.name}}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">座位号</span>
+                            <span class="info-value">{{seat.seatNumber}}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">位置</span>
+                            <span class="info-value">{{room.building}} {{room.floor}}层</span>
+                        </div>
+                        
+                        <el-form :model="form" label-width="100px" style="margin-top: 24px;">
+                            <el-form-item label="预约日期">
+                                <el-date-picker v-model="form.date" type="date" placeholder="选择日期" :disabled-date="disabledDate" @change="onDateChange" style="width: 100%;"></el-date-picker>
+                            </el-form-item>
+                            <el-form-item label="开始时间">
+                                <el-time-select v-model="form.startTime" start="08:00" step="00:30" end="22:00" placeholder="选择时间" style="width: 100%;"></el-time-select>
+                            </el-form-item>
+                            <el-form-item label="结束时间">
+                                <el-time-select v-model="form.endTime" start="08:00" step="00:30" end="22:00" placeholder="选择时间" style="width: 100%;"></el-time-select>
+                            </el-form-item>
+                        </el-form>
+                        
+                        <!-- 冲突提示 -->
+                        <div v-if="hasConflict" class="conflict-warning">
+                            <el-icon style="margin-right: 4px;"><Warning /></el-icon>
+                            该时间段已被预约，请选择其他时段或座位
+                        </div>
+                        
+                        <div style="margin-top: 24px; text-align: center;">
+                            <el-button @click="goBack">返回</el-button>
+                            <el-button type="primary" @click="submitReserve" :loading="submitting" :disabled="hasConflict">确认预约</el-button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧已预约列表 -->
+                <div class="reserve-sidebar">
+                    <div class="occupied-card">
+                        <div class="occupied-title">📅 该座位预约情况</div>
+                        <div class="occupied-subtitle">{{seat.seatNumber}} - {{form.date || '请选择日期'}}</div>
+                        
+                        <!-- 时间可视化条 -->
+                        <div class="time-visual" v-if="occupiedList.length > 0">
+                            <div class="time-visual-title">时间段占用情况（08:00-22:00）</div>
+                            <div class="time-bar">
+                                <div v-for="(seg, index) in timeSegments" :key="index" 
+                                     :class="['time-segment', seg.occupied ? 'occupied' : 'free']"
+                                     :title="seg.label">
+                                </div>
+                            </div>
+                            <div class="time-labels">
+                                <span>08:00</span>
+                                <span>15:00</span>
+                                <span>22:00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="occupied-list" v-if="occupiedList.length > 0">
+                            <div v-for="item in occupiedList" :key="item.id" 
+                                 :class="['occupied-item', item.isMine ? 'my-reservation' : '']">
+                                <div class="occupied-info">
+                                    <div class="occupied-user">
+                                        {{item.isMine ? '我' : item.userName}}
+                                        <el-tag v-if="item.isMine" size="small" type="primary" style="margin-left: 8px;">我的预约</el-tag>
+                                    </div>
+                                    <div class="occupied-time">{{item.startTime}} - {{item.endTime}}</div>
+                                </div>
+                                <div :class="['occupied-status', getStatusClass(item.status)]">
+                                    {{getStatusText(item.status)}}
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="empty-occupied">
+                            <el-icon :size="48" style="color: #ccc;"><Calendar /></el-icon>
+                            <p style="margin-top: 12px;">该日期暂无预约</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        const { createApp, ref, reactive, onMounted, computed } = Vue;
+        const { ElMessage } = ElementPlus;
+        const { UserFilled, Warning, Calendar } = ElementPlusIconsVue;
+
+        createApp({
+            setup() {
+                const currentUser = ref(null);
+                const room = ref(/*[[${room}]]*/ {});
+                const seat = ref(/*[[${seat}]]*/ {});
+                const submitting = ref(false);
+                const form = reactive({ date: '', startTime: '', endTime: '' });
+                const occupiedList = ref([]);
+
+                const fetchUser = async () => {
+                    try {
+                        const res = await axios.get('/api/user/info');
+                        if (res.data.code === 200) currentUser.value = res.data.data;
+                    } catch (e) {}
+                };
+
+                const disabledDate = (time) => {
+                    // 允许选择任何日期（包括过去），签到时才检查是否过期
+                    return false;
+                };
+
+                const goBack = () => {
+                    window.history.back();
+                };
+                
+                // 日期变化时查询已预约列表
+                const onDateChange = async () => {
+                    if (!form.date || !seat.value.id) return;
+                    await fetchOccupiedList();
+                };
+                
+                // 获取已预约列表
+                const fetchOccupiedList = async () => {
+                    try {
+                        const dateStr = form.date.toISOString ? form.date.toISOString().split('T')[0] : form.date;
+                        const res = await axios.get(`/api/reservation/seat/${seat.value.id}/occupied-list?date=${dateStr}`);
+                        if (res.data.code === 200) {
+                            occupiedList.value = res.data.data.map(item => ({
+                                ...item,
+                                isMine: currentUser.value && item.userId === currentUser.value.id
+                            }));
+                        }
+                    } catch (e) {
+                        console.error('获取预约列表失败', e);
+                    }
+                };
+                
+                // 时间分段可视化
+                const timeSegments = computed(() => {
+                    const segments = [];
+                    const startHour = 8;
+                    const endHour = 22;
+                    const totalHours = endHour - startHour;
+                    const segmentCount = 28; // 每30分钟一段
+                    
+                    for (let i = 0; i < segmentCount; i++) {
+                        const segStart = startHour * 60 + i * 30;
+                        const segEnd = segStart + 30;
+                        
+                        // 检查该时间段是否被占用
+                        const occupied = occupiedList.value.some(item => {
+                            const [startH, startM] = item.startTime.split(':').map(Number);
+                            const [endH, endM] = item.endTime.split(':').map(Number);
+                            const itemStart = startH * 60 + startM;
+                            const itemEnd = endH * 60 + endM;
+                            return segStart < itemEnd && segEnd > itemStart;
+                        });
+                        
+                        segments.push({
+                            occupied,
+                            label: `${Math.floor(segStart/60)}:${(segStart%60).toString().padStart(2,'0')}-${Math.floor(segEnd/60)}:${(segEnd%60).toString().padStart(2,'0')}`
+                        });
+                    }
+                    return segments;
+                });
+                
+                // 检查是否有冲突
+                const hasConflict = computed(() => {
+                    if (!form.startTime || !form.endTime) return false;
+                    return occupiedList.value.some(item => isTimeOverlap(form.startTime, form.endTime, item.startTime, item.endTime));
+                });
+                
+                // 检查时间是否重叠
+                const isTimeOverlap = (start1, end1, start2, end2) => {
+                    const toMinutes = (time) => {
+                        const [h, m] = time.split(':').map(Number);
+                        return h * 60 + m;
+                    };
+                    const s1 = toMinutes(start1);
+                    const e1 = toMinutes(end1);
+                    const s2 = toMinutes(start2);
+                    const e2 = toMinutes(end2);
+                    return !(e1 <= s2 || s1 >= e2);
+                };
+                
+                const getStatusText = (status) => {
+                    const map = { 0: '待签到', 1: '已签到', 2: '已完成', 3: '已取消' };
+                    return map[status] || '未知';
+                };
+                
+                const getStatusClass = (status) => {
+                    const map = { 0: 'status-pending', 1: 'status-checked', 2: 'status-checked', 3: 'status-expired' };
+                    return map[status] || '';
+                };
+
+                const submitReserve = async () => {
+                    if (!form.date || !form.startTime || !form.endTime) {
+                        ElMessage.warning('请填写完整的预约信息');
+                        return;
+                    }
+                    if (form.startTime >= form.endTime) {
+                        ElMessage.warning('结束时间必须晚于开始时间');
+                        return;
+                    }
+                    
+                    // 检查是否与已预约时段冲突
+                    for (const occupied of occupiedList.value) {
+                        if (isTimeOverlap(form.startTime, form.endTime, occupied.startTime, occupied.endTime)) {
+                            ElMessage.error(`该时间段与 ${occupied.userName} 的预约 ${occupied.startTime}-${occupied.endTime} 冲突，请选择其他时段`);
+                            return;
+                        }
+                    }
+                    
+                    submitting.value = true;
+                    try {
+                        const params = {
+                            roomId: room.value.id,
+                            seatId: seat.value.id,
+                            reservationDate: form.date.toISOString ? form.date.toISOString().split('T')[0] : form.date,
+                            startTime: form.startTime,
+                            endTime: form.endTime
+                        };
+                        const res = await axios.post('/api/reservation/create', params);
+                        if (res.data.code === 200) {
+                            ElMessage.success('预约成功');
+                            window.location.href = '/reservation';
+                        } else {
+                            ElMessage.error(res.data.message || '预约失败');
+                        }
+                    } catch (e) {
+                        if (e.response && e.response.data && e.response.data.message) {
+                            ElMessage.error(e.response.data.message);
+                        } else {
+                            ElMessage.error('预约失败，请重试');
+                        }
+                    } finally {
+                        submitting.value = false;
+                    }
+                };
+
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => {
+                    fetchUser();
+                    form.date = new Date().toISOString().split('T')[0];
+                    onDateChange();
+                });
+
+                return { 
+                    currentUser, room, seat, form, submitting, occupiedList,
+                    timeSegments, hasConflict,
+                    disabledDate, goBack, submitReserve, onDateChange, fetchOccupiedList,
+                    getStatusText, getStatusClass, logout, UserFilled, Warning, Calendar
+                };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

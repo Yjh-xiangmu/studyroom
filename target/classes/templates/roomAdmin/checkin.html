@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出勤管理 - 高校自习室智能管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        .admin-container { min-height: 100vh; }
+        .admin-header { background: #001529; color: white; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 600; }
+        .user-info { display: flex; align-items: center; gap: 16px; }
+        .admin-layout { display: flex; min-height: calc(100vh - 64px); }
+        .admin-sidebar { width: 200px; background: #001529; min-height: calc(100vh - 64px); }
+        .sidebar-menu { list-style: none; padding: 16px 0; }
+        .sidebar-menu li { padding: 12px 24px; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.3s; }
+        .sidebar-menu li:hover, .sidebar-menu li.active { color: white; background: #1890ff; }
+        .admin-main { flex: 1; padding: 24px; }
+        .page-title { font-size: 24px; margin-bottom: 24px; color: #1f2f3d; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); text-align: center; }
+        .stat-title { color: #666; font-size: 14px; margin-bottom: 8px; }
+        .stat-value { font-size: 32px; font-weight: 600; }
+        .content-card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        .filter-bar { margin-bottom: 20px; }
+        .no-checkin-section { margin-top: 24px; }
+        .section-title { font-size: 18px; font-weight: 500; margin-bottom: 16px; color: #ff4d4f; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="admin-container">
+            <header class="admin-header">
+                <div class="logo">自习室管理后台</div>
+                <div class="user-info">
+                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                    <el-button type="danger" size="small" @click="logout">退出</el-button>
+                </div>
+            </header>
+            <div class="admin-layout">
+                <aside class="admin-sidebar">
+                    <ul class="sidebar-menu">
+                        <li @click="goTo('/admin/dashboard')">控制台</li>
+                        <li @click="goTo('/admin/studyroom')">自习室管理</li>
+                        <li @click="goTo('/admin/reservation')">预约管理</li>
+                        <li class="active" @click="goTo('/admin/checkin')">出勤管理</li>
+                        <li @click="goTo('/admin/forum')">论坛管理</li>
+                        <li @click="goTo('/admin/notice')">公告上报</li>
+                        <li @click="goTo('/admin/profile')">个人中心</li>
+                    </ul>
+                </aside>
+                <main class="admin-main">
+                    <h1 class="page-title">出勤管理</h1>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-title">今日预约</div>
+                            <div class="stat-value" style="color: #1890ff;" v-text="stats.totalReservations">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">已签到</div>
+                            <div class="stat-value" style="color: #52c41a;" v-text="stats.checkedIn">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">已完成</div>
+                            <div class="stat-value" style="color: #722ed1;" v-text="stats.completed">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">未签到</div>
+                            <div class="stat-value" style="color: #ff4d4f;" v-text="stats.pending">0</div>
+                        </div>
+                    </div>
+                    <div class="content-card">
+                        <div class="filter-bar">
+                            <el-date-picker v-model="queryDate" type="date" placeholder="选择日期" @change="fetchData"></el-date-picker>
+                            <el-select v-model="selectedRoom" placeholder="选择自习室" clearable style="margin-left: 10px; width: 200px;" @change="fetchData">
+                                <el-option v-for="room in rooms" :key="room.id" :label="room.name" :value="room.id"></el-option>
+                            </el-select>
+                            <el-select v-model="selectedStatus" placeholder="出勤状态" clearable style="margin-left: 10px; width: 150px;" @change="fetchDetail">
+                                <el-option label="全部" :value="null"></el-option>
+                                <el-option label="待签到" :value="0"></el-option>
+                                <el-option label="已签到" :value="1"></el-option>
+                                <el-option label="已完成" :value="2"></el-option>
+                            </el-select>
+                            <el-button type="primary" style="margin-left: 10px;" @click="fetchData">刷新</el-button>
+                        </div>
+                        <h3 style="margin-bottom: 16px;">出勤统计图表</h3>
+                        <div id="attendanceChart" style="height: 300px;"></div>
+                    </div>
+                    
+                    <!-- 出勤明细列表 -->
+                    <div class="content-card no-checkin-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 class="section-title" v-if="selectedStatus === 0">⚠️ 未签到人员列表</h3>
+                            <h3 style="font-size: 18px; font-weight: 500;" v-else>出勤明细列表</h3>
+                            <el-tag v-if="selectedStatus === 0" type="danger">共 {{page.total}} 人未签到</el-tag>
+                        </div>
+                        <el-table :data="attendanceList" v-loading="detailLoading" border>
+                            <el-table-column prop="id" label="预约ID" width="80"></el-table-column>
+                            <el-table-column prop="userName" label="用户" width="120"></el-table-column>
+                            <el-table-column prop="roomName" label="自习室" width="150"></el-table-column>
+                            <el-table-column prop="seatNumber" label="座位" width="80"></el-table-column>
+                            <el-table-column prop="reservationDate" label="预约日期" width="120"></el-table-column>
+                            <el-table-column prop="startTime" label="预约时段" width="150">
+                                <template #default="scope">
+                                    {{scope.row.startTime}} - {{scope.row.endTime}}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="status" label="状态" width="100">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.status === 0" type="info">待签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 1" type="success">已签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 2" type="primary">已完成</el-tag>
+                                    <el-tag v-else type="danger">已取消</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="checkInTime" label="签到时间" width="150">
+                                <template #default="scope">
+                                    <span v-if="scope.row.checkInTime" style="color: #52c41a;">{{scope.row.checkInTime}}</span>
+                                    <span v-else style="color: #ff4d4f;">未签到</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="150" v-if="selectedStatus === 0">
+                                <template #default="scope">
+                                    <el-button type="primary" size="small" @click="markAsCheckedIn(scope.row)">标记签到</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <div style="margin-top: 20px; text-align: right;">
+                            <el-pagination v-model:current-page="page.current" v-model:page-size="page.size" :total="page.total" layout="total, prev, pager, next" @current-change="fetchDetail"></el-pagination>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script th:inline="none">
+        const { createApp, ref, reactive, onMounted, watch } = Vue;
+        const { ElMessage } = ElementPlus;
+        createApp({
+            setup() {
+                const stats = reactive({ totalReservations: 0, checkedIn: 0, completed: 0, pending: 0 });
+                const queryDate = ref(new Date());
+                const selectedRoom = ref(null);
+                const selectedStatus = ref(null);
+                const rooms = ref([]);
+                const attendanceList = ref([]);
+                const detailLoading = ref(false);
+                const page = reactive({ current: 1, size: 10, total: 0 });
+                let chart = null;
+
+                const fetchRooms = async () => {
+                    try {
+                        const res = await axios.get('/api/roomadmin/rooms');
+                        if (res.data.code === 200) rooms.value = res.data.data;
+                    } catch (e) {}
+                };
+
+                const fetchData = async () => {
+                    await fetchAttendance();
+                    await fetchDetail();
+                };
+
+                const fetchAttendance = async () => {
+                    try {
+                        let url = '/api/roomadmin/attendance';
+                        const params = [];
+                        if (queryDate.value) params.push(`date=${queryDate.value.toISOString().split('T')[0]}`);
+                        if (selectedRoom.value) params.push(`roomId=${selectedRoom.value}`);
+                        if (params.length > 0) url += '?' + params.join('&');
+                        
+                        const res = await axios.get(url);
+                        if (res.data.code === 200) {
+                            Object.assign(stats, res.data.data);
+                            updateChart();
+                        }
+                    } catch (e) { ElMessage.error('获取出勤数据失败'); }
+                };
+
+                const fetchDetail = async () => {
+                    detailLoading.value = true;
+                    try {
+                        let url = `/api/roomadmin/attendance/detail?page=${page.current}&size=${page.size}`;
+                        if (queryDate.value) url += `&date=${queryDate.value.toISOString().split('T')[0]}`;
+                        if (selectedRoom.value) url += `&roomId=${selectedRoom.value}`;
+                        if (selectedStatus.value !== null) url += `&status=${selectedStatus.value}`;
+                        
+                        const res = await axios.get(url);
+                        if (res.data.code === 200) {
+                            attendanceList.value = res.data.data.records;
+                            page.total = res.data.data.total;
+                        }
+                    } catch (e) { 
+                        ElMessage.error('获取出勤明细失败'); 
+                    } finally {
+                        detailLoading.value = false;
+                    }
+                };
+                
+                const markAsCheckedIn = async (row) => {
+                    try {
+                        const res = await axios.put(`/api/roomadmin/reservation/${row.id}`, { status: 1 });
+                        if (res.data.code === 200) {
+                            ElMessage.success('标记签到成功');
+                            fetchData();
+                        } else {
+                            ElMessage.error(res.data.message || '操作失败');
+                        }
+                    } catch (e) {
+                        ElMessage.error('操作失败');
+                    }
+                };
+
+                const updateChart = () => {
+                    if (!chart) {
+                        chart = echarts.init(document.getElementById('attendanceChart'));
+                    }
+                    const option = {
+                        tooltip: { trigger: 'axis' },
+                        xAxis: { type: 'category', data: ['待签到', '已签到', '已完成'] },
+                        yAxis: { type: 'value', name: '人数/人' },
+                        series: [{
+                            data: [
+                                { value: stats.pending, itemStyle: { color: '#ff4d4f' } },
+                                { value: stats.checkedIn, itemStyle: { color: '#52c41a' } },
+                                { value: stats.completed, itemStyle: { color: '#722ed1' } }
+                            ],
+                            type: 'bar',
+                            label: {
+                                show: true,
+                                position: 'top'
+                            }
+                        }]
+                    };
+                    chart.setOption(option);
+                };
+
+                watch(() => page.current, fetchDetail);
+
+                const goTo = (path) => { window.location.href = path; };
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => { fetchRooms(); fetchData(); });
+
+                return { stats, queryDate, selectedRoom, selectedStatus, rooms, attendanceList, detailLoading, page,
+                         fetchData, fetchDetail, markAsCheckedIn, goTo, logout };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>预约管理 - 高校自习室智能管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        .admin-container { min-height: 100vh; }
+        .admin-header { background: #001529; color: white; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 600; }
+        .user-info { display: flex; align-items: center; gap: 16px; }
+        .admin-layout { display: flex; min-height: calc(100vh - 64px); }
+        .admin-sidebar { width: 200px; background: #001529; min-height: calc(100vh - 64px); }
+        .sidebar-menu { list-style: none; padding: 16px 0; }
+        .sidebar-menu li { padding: 12px 24px; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.3s; }
+        .sidebar-menu li:hover, .sidebar-menu li.active { color: white; background: #1890ff; }
+        .admin-main { flex: 1; padding: 24px; }
+        .page-title { font-size: 24px; margin-bottom: 24px; color: #1f2f3d; }
+        .content-card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        .filter-bar { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="admin-container">
+            <header class="admin-header">
+                <div class="logo">自习室管理后台</div>
+                <div class="user-info">
+                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                    <el-button type="danger" size="small" @click="logout">退出</el-button>
+                </div>
+            </header>
+            <div class="admin-layout">
+                <aside class="admin-sidebar">
+                    <ul class="sidebar-menu">
+                        <li @click="goTo('/admin/dashboard')">控制台</li>
+                        <li @click="goTo('/admin/studyroom')">自习室管理</li>
+                        <li class="active" @click="goTo('/admin/reservation')">预约管理</li>
+                        <li @click="goTo('/admin/checkin')">出勤管理</li>
+                        <li @click="goTo('/admin/forum')">论坛管理</li>
+                        <li @click="goTo('/admin/notice')">公告上报</li>
+                        <li @click="goTo('/admin/profile')">个人中心</li>
+                    </ul>
+                </aside>
+                <main class="admin-main">
+                    <h1 class="page-title">预约管理</h1>
+                    <div class="content-card">
+                        <div class="filter-bar">
+                            <el-row :gutter="20">
+                                <el-col :span="6">
+                                    <el-select v-model="filter.roomId" placeholder="选择自习室" clearable style="width: 100%;">
+                                        <el-option v-for="room in rooms" :key="room.id" :label="room.name" :value="room.id"></el-option>
+                                    </el-select>
+                                </el-col>
+                                <el-col :span="6">
+                                    <el-select v-model="filter.status" placeholder="预约状态" clearable style="width: 100%;">
+                                        <el-option label="待签到" :value="0"></el-option>
+                                        <el-option label="已签到" :value="1"></el-option>
+                                        <el-option label="已完成" :value="2"></el-option>
+                                        <el-option label="已取消" :value="3"></el-option>
+                                    </el-select>
+                                </el-col>
+                                <el-col :span="6">
+                                    <el-date-picker v-model="filter.date" type="date" placeholder="选择日期" style="width: 100%;"></el-date-picker>
+                                </el-col>
+                                <el-col :span="6">
+                                    <el-button type="primary" @click="fetchReservations">查询</el-button>
+                                    <el-button @click="resetFilter">重置</el-button>
+                                </el-col>
+                            </el-row>
+                        </div>
+                        <el-table :data="reservations" v-loading="loading" border>
+                            <el-table-column prop="id" label="预约ID" width="80"></el-table-column>
+                            <el-table-column prop="userName" label="用户" width="120"></el-table-column>
+                            <el-table-column prop="roomName" label="自习室" width="150"></el-table-column>
+                            <el-table-column prop="seatNumber" label="座位" width="80"></el-table-column>
+                            <el-table-column prop="reservationDate" label="预约日期" width="120"></el-table-column>
+                            <el-table-column prop="startTime" label="开始时间" width="100"></el-table-column>
+                            <el-table-column prop="endTime" label="结束时间" width="100"></el-table-column>
+                            <el-table-column prop="status" label="状态" width="100">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.status === 0" type="info">待签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 1" type="success">已签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 2" type="primary">已完成</el-tag>
+                                    <el-tag v-else type="danger">已取消</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="checkInTime" label="签到时间" width="150">
+                                <template #default="scope">
+                                    {{scope.row.checkInTime || '-'}}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="checkOutTime" label="签退时间" width="150">
+                                <template #default="scope">
+                                    {{scope.row.checkOutTime || '-'}}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="180" fixed="right">
+                                <template #default="scope">
+                                    <el-button type="primary" size="small" @click="editReservation(scope.row)">修改</el-button>
+                                    <el-button type="danger" size="small" @click="deleteReservation(scope.row)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <div style="margin-top: 20px; text-align: right;">
+                            <el-pagination v-model:current-page="page.current" v-model:page-size="page.size" :total="page.total" layout="total, prev, pager, next"></el-pagination>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+        
+        <!-- 修改预约弹窗 -->
+        <el-dialog v-model="editDialogVisible" title="修改预约状态" width="400px">
+            <el-form :model="editForm" label-width="100px">
+                <el-form-item label="预约ID">
+                    <span>{{editForm.id}}</span>
+                </el-form-item>
+                <el-form-item label="用户">
+                    <span>{{editForm.userName}}</span>
+                </el-form-item>
+                <el-form-item label="座位">
+                    <span>{{editForm.roomName}} - {{editForm.seatNumber}}</span>
+                </el-form-item>
+                <el-form-item label="预约时间">
+                    <span>{{editForm.reservationDate}} {{editForm.startTime}}-{{editForm.endTime}}</span>
+                </el-form-item>
+                <el-form-item label="当前状态">
+                    <el-tag v-if="editForm.status === 0" type="info">待签到</el-tag>
+                    <el-tag v-else-if="editForm.status === 1" type="success">已签到</el-tag>
+                    <el-tag v-else-if="editForm.status === 2" type="primary">已完成</el-tag>
+                    <el-tag v-else type="danger">已取消</el-tag>
+                </el-form-item>
+                <el-form-item label="修改状态">
+                    <el-select v-model="editForm.newStatus" placeholder="选择新状态" style="width: 100%;">
+                        <el-option label="待签到" :value="0"></el-option>
+                        <el-option label="已签到" :value="1"></el-option>
+                        <el-option label="已完成" :value="2"></el-option>
+                        <el-option label="已取消" :value="3"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="editDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveReservation" :loading="saving">保存</el-button>
+            </template>
+        </el-dialog>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script th:inline="none">
+        const { createApp, ref, reactive, onMounted, watch } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+        createApp({
+            setup() {
+                const loading = ref(false);
+                const rooms = ref([]);
+                const reservations = ref([]);
+                const filter = reactive({ roomId: null, status: null, date: null });
+                const page = reactive({ current: 1, size: 10, total: 0 });
+                
+                const editDialogVisible = ref(false);
+                const saving = ref(false);
+                const editForm = reactive({ id: null, userName: '', roomName: '', seatNumber: '', reservationDate: '', startTime: '', endTime: '', status: null, newStatus: null });
+
+                const fetchRooms = async () => {
+                    try {
+                        const res = await axios.get('/api/roomadmin/rooms');
+                        if (res.data.code === 200) rooms.value = res.data.data;
+                    } catch (e) {}
+                };
+
+                const fetchReservations = async () => {
+                    loading.value = true;
+                    try {
+                        let url = `/api/roomadmin/reservations?page=${page.current}&size=${page.size}`;
+                        if (filter.roomId) url += `&roomId=${filter.roomId}`;
+                        if (filter.status !== null) url += `&status=${filter.status}`;
+                        if (filter.date) url += `&date=${filter.date.toISOString().split('T')[0]}`;
+                        
+                        const res = await axios.get(url);
+                        if (res.data.code === 200) {
+                            reservations.value = res.data.data.records;
+                            page.total = res.data.data.total;
+                        }
+                    } catch (e) { ElMessage.error('获取预约列表失败'); }
+                    finally { loading.value = false; }
+                };
+
+                const resetFilter = () => {
+                    filter.roomId = null;
+                    filter.status = null;
+                    filter.date = null;
+                    fetchReservations();
+                };
+                
+                const editReservation = (row) => {
+                    Object.assign(editForm, row);
+                    editForm.newStatus = row.status;
+                    editDialogVisible.value = true;
+                };
+                
+                const saveReservation = async () => {
+                    if (editForm.newStatus === editForm.status) {
+                        ElMessage.warning('请选择不同的状态');
+                        return;
+                    }
+                    saving.value = true;
+                    try {
+                        const res = await axios.put(`/api/roomadmin/reservation/${editForm.id}`, { status: editForm.newStatus });
+                        if (res.data.code === 200) {
+                            ElMessage.success('修改成功');
+                            editDialogVisible.value = false;
+                            fetchReservations();
+                        } else {
+                            ElMessage.error(res.data.message || '修改失败');
+                        }
+                    } catch (e) {
+                        ElMessage.error('修改失败');
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+                
+                const deleteReservation = async (row) => {
+                    try {
+                        await ElMessageBox.confirm('确定要删除该预约吗？此操作不可恢复', '提示', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        });
+                        
+                        const res = await axios.delete(`/api/roomadmin/reservation/${row.id}`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('删除成功');
+                            fetchReservations();
+                        } else {
+                            ElMessage.error(res.data.message || '删除失败');
+                        }
+                    } catch (e) {
+                        if (e !== 'cancel') {
+                            ElMessage.error('删除失败');
+                        }
+                    }
+                };
+
+                watch(() => page.current, fetchReservations);
+
+                const goTo = (path) => { window.location.href = path; };
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => { fetchRooms(); fetchReservations(); });
+
+                return { loading, rooms, reservations, filter, page, fetchReservations, resetFilter, 
+                         editDialogVisible, editForm, saving, editReservation, saveReservation, deleteReservation,
+                         goTo, logout };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自习室详情 - 高校自习室智能管理系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f7fa; }
+        .navbar { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 0 48px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+        .navbar-brand { font-size: 22px; font-weight: 700; color: #0068DD; text-decoration: none; }
+        .nav-menu { display: flex; gap: 32px; }
+        .nav-item { color: #333; text-decoration: none; font-weight: 500; line-height: 64px; }
+        .nav-item:hover, .nav-item.active { color: #0068DD; }
+        .main-content { padding-top: 64px; min-height: 100vh; padding-bottom: 40px; }
+        .room-header { background: #fff; padding: 32px 48px; margin-bottom: 24px; }
+        .room-header-content { max-width: 1200px; margin: 0 auto; display: flex; gap: 32px; }
+        .room-image { width: 400px; height: 280px; object-fit: cover; border-radius: 8px; }
+        .room-info { flex: 1; }
+        .room-title { font-size: 28px; font-weight: 600; margin-bottom: 16px; }
+        .room-meta { display: flex; flex-wrap: wrap; gap: 24px; color: #666; margin-bottom: 16px; }
+        .room-meta span { display: flex; align-items: center; gap: 6px; }
+        .room-desc { color: #666; line-height: 1.8; margin-bottom: 24px; }
+        .seat-section { max-width: 1200px; margin: 0 auto; padding: 0 48px; }
+        .seat-container { background: #fff; border-radius: 8px; padding: 32px; }
+        .seat-legend { display: flex; gap: 24px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-box { width: 24px; height: 24px; border-radius: 4px; }
+        
+        /* 座位布局容器 */
+        .seat-layout-wrapper {
+            position: relative;
+            width: 100%;
+            overflow: auto;
+            background: #f5f5f5;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+        }
+        
+        .seat-layout-container {
+            position: relative;
+            min-width: 100%;
+            min-height: 500px;
+        }
+        
+        .seat-item {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .seat-available { background: #52c41a; color: white; }
+        .seat-available:hover { background: #389e0d; transform: scale(1.05); }
+        .seat-occupied { background: #ff4d4f; color: white; cursor: not-allowed; }
+        .seat-selected { background: #0068DD; color: white; box-shadow: 0 0 0 3px #1890ff; }
+        .seat-disabled { background: #d9d9d9; border: 1px solid #bfbfbf; color: #666; cursor: not-allowed; }
+        .seat-aisle { 
+            background: #fffbe6; 
+            border: 2px dashed #faad14; 
+            color: #faad14; 
+            cursor: default;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .seat-empty { 
+            background: transparent; 
+            border: 1px dashed #d9d9d9; 
+            cursor: default;
+        }
+        
+        .seat-number { font-weight: bold; font-size: 14px; }
+        .seat-tags { font-size: 9px; margin-top: 2px; }
+        
+        .tag-legend {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fafafa;
+            border-radius: 8px;
+        }
+        
+        .tag-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin: 4px 12px 4px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .refresh-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar">
+            <a href="/" class="navbar-brand">自习室管理系统</a>
+            <div class="nav-menu">
+                <a href="/" class="nav-item">首页</a>
+                <a href="/studyroom" class="nav-item active">自习室</a>
+                <a href="/reservation" class="nav-item">我的预约</a>
+                <a href="/checkin" class="nav-item">签到打卡</a>
+                <a href="/forum" class="nav-item">社区论坛</a>
+            </div>
+            <div class="nav-user">
+                <el-dropdown v-if="currentUser">
+                    <span class="el-dropdown-link">
+                        <el-avatar :size="32" :icon="UserFilled"></el-avatar>
+                        <span style="margin-left: 8px;">{{currentUser.realName || currentUser.username}}</span>
+                    </span>
+                    <template #dropdown>
+                        <el-dropdown-menu>
+                            <el-dropdown-item><a href="/profile" style="text-decoration: none; color: inherit;">个人中心</a></el-dropdown-item>
+                            <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                        </el-dropdown-menu>
+                    </template>
+                </el-dropdown>
+                <a v-else href="/login" style="color: #333; text-decoration: none;">登录</a>
+            </div>
+        </nav>
+
+        <div class="main-content">
+            <div class="room-header">
+                <div class="room-header-content">
+                    <img :src="getRoomImage(room.id)" class="room-image" alt="自习室">
+                    <div class="room-info">
+                        <div class="room-title">{{room.name}}</div>
+                        <div class="room-meta">
+                            <span><el-icon><Location /></el-icon>{{room.building}} {{room.floor}}层</span>
+                            <span><el-icon><User /></el-icon>容量: {{room.capacity}}人</span>
+                            <span><el-icon><Clock /></el-icon>{{room.openTime}} - {{room.closeTime}}</span>
+                        </div>
+                        <div class="room-desc">{{room.description}}</div>
+                        <div style="color: #1890ff; font-size: 14px; margin-bottom: 16px;">
+                            设施: {{room.hasAirCondition ? '空调 ' : ''}}{{room.hasWifi ? 'WiFi ' : ''}}{{room.hasPower ? '插座' : ''}}
+                        </div>
+                        <el-button type="primary" size="large" @click="scrollToSeat">选择座位</el-button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="seat-section" id="seatSection">
+                <div class="seat-container">
+                    <h3 style="margin-bottom: 24px; text-align: center;">座位选择</h3>
+                    <div class="seat-legend">
+                        <div class="legend-item"><div class="legend-box" style="background: #52c41a;"></div>可选</div>
+                        <div class="legend-item"><div class="legend-box" style="background: #ff4d4f;"></div>已占用</div>
+                        <div class="legend-item"><div class="legend-box" style="background: #0068DD;"></div>已选择</div>
+                        <div class="legend-item"><div class="legend-box" style="background: #d9d9d9; border: 1px solid #bfbfbf;"></div>维护中</div>
+                        <div class="legend-item"><div class="legend-box" style="background: #fffbe6; border: 2px dashed #faad14;"></div>过道</div>
+                        <div class="legend-item"><div class="legend-box" style="background: transparent; border: 1px dashed #d9d9d9;"></div>空隙</div>
+                    </div>
+                    
+                    <!-- 标签图例 -->
+                    <div class="tag-legend">
+                        <div style="font-weight: 500; margin-bottom: 8px;">座位标签说明：</div>
+                        <div class="tag-item"><span>🪟</span> 靠窗</div>
+                        <div class="tag-item"><span>🧱</span> 靠墙</div>
+                        <div class="tag-item"><span>🔌</span> 有插座</div>
+                        <div class="tag-item"><span>💡</span> 有台灯</div>
+                        <div class="tag-item"><span>🔇</span> 安静区</div>
+                        <div class="tag-item"><span>❄️</span> 空调区</div>
+                        <div class="tag-item"><span>☀️</span> 阳光充足</div>
+                        <div class="tag-item"><span>📐</span> 角落位置</div>
+                        <div class="tag-item"><span>↔️</span> 宽敞</div>
+                        <div class="tag-item"><span>🚪</span> 靠门近</div>
+                    </div>
+                    
+                    <div v-if="loading" style="text-align: center; padding: 40px;">
+                        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+                        <p style="margin-top: 12px; color: #999;">加载座位布局中...</p>
+                    </div>
+                    <div v-else-if="seats.length === 0" style="text-align: center; padding: 40px; color: #999;">
+                        暂无座位数据
+                    </div>
+                    <div v-else class="seat-layout-wrapper">
+                        <el-button class="refresh-btn" size="small" @click="fetchSeats" :loading="loading">
+                            <el-icon><Refresh /></el-icon> 刷新布局
+                        </el-button>
+                        <div class="seat-layout-container" :style="containerStyle">
+                            <div 
+                                v-for="seat in seats" 
+                                :key="seat.id"
+                                class="seat-item"
+                                :class="getSeatClass(seat)"
+                                :style="getSeatStyle(seat)"
+                                @click="selectSeat(seat)">
+                                <span v-if="seat.seatType === 2" style="font-size: 12px;">过道</span>
+                                <template v-else-if="seat.seatType !== 3">
+                                    <span class="seat-number">{{seat.seatNumber}}</span>
+                                    <span v-if="seat.tags" class="seat-tags">{{getTagIcons(seat.tags)}}</span>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="selectedSeat" style="margin-top: 24px; text-align: center;">
+                        <p style="margin-bottom: 16px;">已选择座位: <strong>{{selectedSeat.seatNumber}}</strong>
+                            <span v-if="selectedSeat.tags" style="color: #666; margin-left: 8px;">{{formatTags(selectedSeat.tags)}}</span>
+                        </p>
+                        <el-button type="success" size="large" @click="goToReserve">确认预约</el-button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        const { createApp, ref, onMounted, computed } = Vue;
+        const { ElMessage } = ElementPlus;
+        const { UserFilled, Location, User, Clock, Loading, Refresh } = ElementPlusIconsVue;
+
+        createApp({
+            setup() {
+                const currentUser = ref(null);
+                const room = ref(/*[[${room}]]*/ {});
+                const seats = ref([]);
+                const selectedSeat = ref(null);
+                const loading = ref(false);
+
+                const fetchUser = async () => {
+                    try {
+                        const res = await axios.get('/api/user/info');
+                        if (res.data.code === 200) currentUser.value = res.data.data;
+                    } catch (e) {}
+                };
+
+                // 动态获取座位数据
+                const fetchSeats = async () => {
+                    loading.value = true;
+                    try {
+                        const res = await axios.get(`/api/studyroom/${room.value.id}/seats`);
+                        if (res.data.code === 200) {
+                            seats.value = res.data.data;
+                        }
+                    } catch (e) {
+                        ElMessage.error('获取座位数据失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 计算容器大小以适应所有座位
+                const containerStyle = computed(() => {
+                    if (seats.value.length === 0) return {};
+                    
+                    let maxX = 0;
+                    let maxY = 0;
+                    
+                    seats.value.forEach(seat => {
+                        const x = (seat.positionX || 0) + (seat.width || 80);
+                        const y = (seat.positionY || 0) + (seat.height || 60);
+                        maxX = Math.max(maxX, x);
+                        maxY = Math.max(maxY, y);
+                    });
+                    
+                    return {
+                        width: Math.max(maxX + 20, 800) + 'px',
+                        height: Math.max(maxY + 20, 500) + 'px'
+                    };
+                });
+
+                const getRoomImage = (id) => `/images/${(id % 9) || 9}.png`;
+                
+                const getSeatClass = (seat) => {
+                    if (seat.seatType === 2) return 'seat-aisle';
+                    if (seat.seatType === 3) return 'seat-empty';
+                    if (seat.status === 0) return 'seat-disabled';
+                    if (seat.status === 2) return 'seat-occupied';
+                    if (selectedSeat.value && selectedSeat.value.id === seat.id) return 'seat-selected';
+                    return 'seat-available';
+                };
+                
+                const getSeatStyle = (seat) => {
+                    const width = seat.width || 80;
+                    const height = seat.height || 60;
+                    return {
+                        left: (seat.positionX || 0) + 'px',
+                        top: (seat.positionY || 0) + 'px',
+                        width: width + 'px',
+                        height: height + 'px'
+                    };
+                };
+                
+                const getTagIcons = (tags) => {
+                    if (!tags) return '';
+                    try {
+                        const tagArray = JSON.parse(tags);
+                        const icons = {
+                            '靠窗': '🪟',
+                            '靠墙': '🧱',
+                            '有插座': '🔌',
+                            '有台灯': '💡',
+                            '安静区': '🔇',
+                            '空调区': '❄️',
+                            '阳光充足': '☀️',
+                            '角落位置': '📐',
+                            '宽敞': '↔️',
+                            '靠门近': '🚪'
+                        };
+                        return tagArray.map(t => icons[t] || '●').join('');
+                    } catch (e) {
+                        return '';
+                    }
+                };
+                
+                const formatTags = (tags) => {
+                    if (!tags) return '';
+                    try {
+                        const tagArray = JSON.parse(tags);
+                        return '[' + tagArray.join('、') + ']';
+                    } catch (e) {
+                        return '';
+                    }
+                };
+                
+                const selectSeat = (seat) => {
+                    if (seat.seatType === 2 || seat.seatType === 3) return;
+                    if (seat.status === 0 || seat.status === 2) return;
+                    selectedSeat.value = seat;
+                };
+                
+                const scrollToSeat = () => {
+                    document.getElementById('seatSection').scrollIntoView({ behavior: 'smooth' });
+                };
+                
+                const goToReserve = () => {
+                    if (!selectedSeat.value) {
+                        ElMessage.warning('请先选择座位');
+                        return;
+                    }
+                    window.location.href = `/studyroom/${room.value.id}/reserve?seatId=${selectedSeat.value.id}`;
+                };
+                
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => { 
+                    fetchUser();
+                    fetchSeats();
+                });
+
+                return { 
+                    currentUser, room, seats, selectedSeat, loading,
+                    containerStyle,
+                    getRoomImage, getSeatClass, getSeatStyle, getTagIcons, formatTags,
+                    selectSeat, scrollToSeat, goToReserve, fetchSeats, logout, 
+                    UserFilled, Location, User, Clock, Loading, Refresh
+                };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body></html>

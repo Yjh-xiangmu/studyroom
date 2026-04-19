@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>签到打卡 - 高校自习室智能管理系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f7fa; }
+        .navbar { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 0 48px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+        .navbar-brand { font-size: 22px; font-weight: 700; color: #0068DD; text-decoration: none; }
+        .nav-menu { display: flex; gap: 32px; }
+        .nav-item { color: #333; text-decoration: none; font-weight: 500; line-height: 64px; }
+        .nav-item:hover, .nav-item.active { color: #0068DD; }
+        .main-content { padding-top: 64px; min-height: 100vh; padding-bottom: 40px; }
+        .checkin-container { max-width: 600px; margin: 40px auto; padding: 0 24px; }
+        .checkin-card { background: #fff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; }
+        .checkin-icon { font-size: 80px; color: #0068DD; margin-bottom: 24px; }
+        .checkin-title { font-size: 24px; font-weight: 600; margin-bottom: 16px; }
+        .checkin-info { color: #666; margin-bottom: 32px; line-height: 1.8; }
+        .checkin-btn { width: 200px; height: 200px; border-radius: 50%; font-size: 24px; font-weight: 600; margin: 24px 0; }
+        .checkin-btn.can-checkin { background: #52c41a; border-color: #52c41a; }
+        .checkin-btn.can-checkout { background: #ff4d4f; border-color: #ff4d4f; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+        .stats-item { background: #f5f7fa; padding: 16px; border-radius: 8px; }
+        .stats-value { font-size: 24px; font-weight: 600; color: #0068DD; }
+        .stats-label { color: #666; font-size: 14px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar">
+            <a href="/" class="navbar-brand">自习室管理系统</a>
+            <div class="nav-menu">
+                <a href="/" class="nav-item">首页</a>
+                <a href="/studyroom" class="nav-item">自习室</a>
+                <a href="/reservation" class="nav-item">我的预约</a>
+                <a href="/checkin" class="nav-item active">签到打卡</a>
+                <a href="/forum" class="nav-item">社区论坛</a>
+            </div>
+            <div class="nav-user">
+                <el-dropdown v-if="currentUser">
+                    <span class="el-dropdown-link">
+                        <el-avatar :size="32" :icon="UserFilled"></el-avatar>
+                        <span style="margin-left: 8px;">{{currentUser.realName || currentUser.username}}</span>
+                    </span>
+                    <template #dropdown>
+                        <el-dropdown-menu>
+                            <el-dropdown-item><a href="/profile" style="text-decoration: none; color: inherit;">个人中心</a></el-dropdown-item>
+                            <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                        </el-dropdown-menu>
+                    </template>
+                </el-dropdown>
+                <a v-else href="/login" style="color: #333; text-decoration: none;">登录</a>
+            </div>
+        </nav>
+
+        <div class="main-content">
+            <div class="checkin-container">
+                <div class="checkin-card">
+                    <div class="checkin-icon">
+                        <el-icon :size="80" color="#0068DD"><CircleCheck /></el-icon>
+                    </div>
+                    <div class="checkin-title">{{currentDate}}</div>
+                    <div class="checkin-info">
+                        <p v-if="activeReservation">当前预约: {{activeReservation.roomName}} {{activeReservation.seatNumber}}</p>
+                        <p v-else>暂无进行中的预约</p>
+                        <p>{{currentTime}}</p>
+                    </div>
+                    
+                    <el-button v-if="canCheckIn" type="success" class="checkin-btn can-checkin" @click="handleCheckIn">
+                        签到
+                    </el-button>
+                    <el-button v-else-if="canCheckOut" type="danger" class="checkin-btn can-checkout" @click="handleCheckOut">
+                        签退
+                    </el-button>
+                    <el-button v-else type="info" class="checkin-btn" disabled>
+                        无预约
+                    </el-button>
+                    
+                    <div class="stats-grid">
+                        <div class="stats-item">
+                            <div class="stats-value">{{stats.totalDays}}</div>
+                            <div class="stats-label">累计天数</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">{{stats.totalHours}}</div>
+                            <div class="stats-label">累计时长(小时)</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">{{stats.streak}}</div>
+                            <div class="stats-label">连续天数</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, onMounted, onUnmounted } = Vue;
+        const { ElMessage } = ElementPlus;
+        const { UserFilled, CircleCheck } = ElementPlusIconsVue;
+
+        createApp({
+            setup() {
+                const currentUser = ref(null);
+                const currentDate = ref('');
+                const currentTime = ref('');
+                const activeReservation = ref(null);
+                const canCheckIn = ref(false);
+                const canCheckOut = ref(false);
+                const stats = reactive({ totalDays: 0, totalHours: 0, streak: 0 });
+                let timer = null;
+
+                const fetchUser = async () => {
+                    try {
+                        const res = await axios.get('/api/user/info');
+                        if (res.data.code === 200) currentUser.value = res.data.data;
+                    } catch (e) {}
+                };
+
+                const fetchActiveReservation = async () => {
+                    try {
+                        const res = await axios.get('/api/reservation/active');
+                        if (res.data.code === 200) {
+                            activeReservation.value = res.data.data;
+                            if (activeReservation.value) {
+                                // 使用后端返回的canCheckIn判断是否可以签到
+                                canCheckIn.value = activeReservation.value.canCheckIn === true;
+                                canCheckOut.value = activeReservation.value.status === 1;
+                            } else {
+                                canCheckIn.value = false;
+                                canCheckOut.value = false;
+                            }
+                        }
+                    } catch (e) {}
+                };
+
+                const fetchStats = async () => {
+                    try {
+                        const res = await axios.get('/api/user/stats');
+                        if (res.data.code === 200) Object.assign(stats, res.data.data);
+                    } catch (e) {}
+                };
+
+                const updateTime = () => {
+                    const now = new Date();
+                    currentDate.value = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+                    currentTime.value = now.toLocaleTimeString('zh-CN');
+                };
+
+                const handleCheckIn = async () => {
+                    if (!activeReservation.value) return;
+                    try {
+                        const res = await axios.post(`/api/reservation/${activeReservation.value.id}/checkin`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('签到成功');
+                            fetchActiveReservation();
+                        } else ElMessage.error(res.data.message || '签到失败');
+                    } catch (e) { ElMessage.error('签到失败'); }
+                };
+
+                const handleCheckOut = async () => {
+                    if (!activeReservation.value) return;
+                    try {
+                        const res = await axios.post(`/api/reservation/${activeReservation.value.id}/checkout`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('签退成功');
+                            fetchActiveReservation();
+                            fetchStats();
+                        } else ElMessage.error(res.data.message || '签退失败');
+                    } catch (e) { ElMessage.error('签退失败'); }
+                };
+
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => {
+                    fetchUser();
+                    fetchActiveReservation();
+                    fetchStats();
+                    updateTime();
+                    timer = setInterval(updateTime, 1000);
+                });
+
+                onUnmounted(() => { if (timer) clearInterval(timer); });
+
+                return { currentUser, currentDate, currentTime, activeReservation, canCheckIn, canCheckOut, stats, handleCheckIn, handleCheckOut, logout, UserFilled, CircleCheck };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

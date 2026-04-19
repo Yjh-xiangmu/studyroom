@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>预约管理 - 高校自习室智能管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        .admin-container { min-height: 100vh; }
+        .admin-header { background: #001529; color: white; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 600; }
+        .user-info { display: flex; align-items: center; gap: 16px; }
+        .admin-layout { display: flex; min-height: calc(100vh - 64px); }
+        .admin-sidebar { width: 200px; background: #001529; min-height: calc(100vh - 64px); }
+        .sidebar-menu { list-style: none; padding: 16px 0; }
+        .sidebar-menu li { padding: 12px 24px; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.3s; }
+        .sidebar-menu li:hover, .sidebar-menu li.active { color: white; background: #1890ff; }
+        .admin-main { flex: 1; padding: 24px; }
+        .page-title { font-size: 24px; margin-bottom: 24px; color: #1f2f3d; }
+        .content-card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        .search-bar { margin-bottom: 20px; display: flex; gap: 12px; }
+        .pagination { margin-top: 20px; display: flex; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="admin-container">
+            <header class="admin-header">
+                <div class="logo">高校自习室智能管理系统</div>
+                <div class="user-info">
+                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                    <el-button type="danger" size="small" @click="logout">退出</el-button>
+                </div>
+            </header>
+            <div class="admin-layout">
+                <aside class="admin-sidebar">
+                    <ul class="sidebar-menu">
+                        <li @click="goTo('/sysadmin/dashboard')">控制台</li>
+                        <li @click="goTo('/sysadmin/user')">用户管理</li>
+                        <li @click="goTo('/sysadmin/studyroom')">自习室管理</li>
+                        <li class="active" @click="goTo('/sysadmin/reservation')">预约管理</li>
+                        <li @click="goTo('/sysadmin/notice')">公告管理</li>
+                        <li @click="goTo('/sysadmin/forum')">论坛管理</li>
+                        <li @click="goTo('/sysadmin/statistics')">数据统计</li>
+                    </ul>
+                </aside>
+                <main class="admin-main">
+                    <h1 class="page-title">预约管理</h1>
+                    <div class="content-card">
+                        <div class="search-bar">
+                            <el-input v-model="searchForm.userName" placeholder="用户名" style="width: 150px;" clearable></el-input>
+                            <el-input v-model="searchForm.roomName" placeholder="自习室名称" style="width: 150px;" clearable></el-input>
+                            <el-select v-model="searchForm.status" placeholder="预约状态" style="width: 120px;" clearable>
+                                <el-option label="待签到" :value="0"></el-option>
+                                <el-option label="已签到" :value="1"></el-option>
+                                <el-option label="已完成" :value="2"></el-option>
+                                <el-option label="已取消" :value="3"></el-option>
+                            </el-select>
+                            <el-date-picker v-model="searchForm.date" type="date" placeholder="预约日期" style="width: 150px;" value-format="YYYY-MM-DD"></el-date-picker>
+                            <el-button type="primary" @click="handleSearch">查询</el-button>
+                            <el-button @click="resetSearch">重置</el-button>
+                        </div>
+                        <el-table :data="reservationList" v-loading="loading" border>
+                            <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                            <el-table-column prop="reservationNo" label="预约号" width="140"></el-table-column>
+                            <el-table-column prop="userName" label="用户" width="100"></el-table-column>
+                            <el-table-column prop="roomName" label="自习室" width="150"></el-table-column>
+                            <el-table-column prop="seatNumber" label="座位号" width="80"></el-table-column>
+                            <el-table-column prop="reservationDate" label="预约日期" width="110"></el-table-column>
+                            <el-table-column prop="startTime" label="开始时间" width="90"></el-table-column>
+                            <el-table-column prop="endTime" label="结束时间" width="90"></el-table-column>
+                            <el-table-column prop="status" label="状态" width="90">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.status === 0 && !isExpired(scope.row)" type="info">待签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 0 && isExpired(scope.row)" type="danger">未签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 1" type="success">已签到</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 2" type="primary">已完成</el-tag>
+                                    <el-tag v-else type="danger">已取消</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="createTime" label="预约时间" width="160"></el-table-column>
+                            <el-table-column label="操作" width="150" fixed="right">
+                                <template #default="scope">
+                                    <el-button type="primary" size="small" @click="handleView(scope.row)">查看</el-button>
+                                    <el-button v-if="scope.row.status === 0 && !isExpired(scope.row)" type="danger" size="small" @click="handleCancel(scope.row)">取消</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <div class="pagination">
+                            <el-pagination v-model:current-page="page.current" v-model:page-size="page.size" :total="page.total" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next" @size-change="handleSizeChange" @current-change="handleCurrentChange"></el-pagination>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+        <el-dialog v-model="dialogVisible" title="预约详情" width="500px">
+            <el-form :model="detail" label-width="100px">
+                <el-form-item label="预约号"><span>{{ detail.reservationNo }}</span></el-form-item>
+                <el-form-item label="用户"><span>{{ detail.userName }}</span></el-form-item>
+                <el-form-item label="自习室"><span>{{ detail.roomName }}</span></el-form-item>
+                <el-form-item label="座位"><span>{{ detail.seatNumber }}</span></el-form-item>
+                <el-form-item label="预约日期"><span>{{ detail.reservationDate }}</span></el-form-item>
+                <el-form-item label="时间段"><span>{{ detail.startTime }} - {{ detail.endTime }}</span></el-form-item>
+                <el-form-item label="状态">
+                    <el-tag v-if="detail.status === 0 && !isExpired(detail)" type="info">待签到</el-tag>
+                    <el-tag v-else-if="detail.status === 0 && isExpired(detail)" type="danger">未签到</el-tag>
+                    <el-tag v-else-if="detail.status === 1" type="success">已签到</el-tag>
+                    <el-tag v-else-if="detail.status === 2" type="primary">已完成</el-tag>
+                    <el-tag v-else type="danger">已取消</el-tag>
+                </el-form-item>
+                <el-form-item label="签到时间"><span>{{ detail.checkInTime || '--' }}</span></el-form-item>
+                <el-form-item label="签退时间"><span>{{ detail.checkOutTime || '--' }}</span></el-form-item>
+            </el-form>
+        </el-dialog>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        const { createApp, ref, reactive, onMounted } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+        createApp({
+            setup() {
+                const loading = ref(false);
+                const reservationList = ref([]);
+                const dialogVisible = ref(false);
+                const detail = ref({});
+                const searchForm = reactive({ userName: '', roomName: '', status: null, date: '' });
+                const page = reactive({ current: 1, size: 10, total: 0 });
+                const fetchList = async () => {
+                    loading.value = true;
+                    try {
+                        const params = { page: page.current, size: page.size, ...searchForm };
+                        const res = await axios.get('/sysadmin/reservation/list', { params });
+                        if (res.data.code === 200) { reservationList.value = res.data.data.records; page.total = res.data.data.total; }
+                    } catch (e) { ElMessage.error('获取列表失败'); }
+                    finally { loading.value = false; }
+                };
+                const handleSearch = () => { page.current = 1; fetchList(); };
+                const resetSearch = () => { searchForm.userName = ''; searchForm.roomName = ''; searchForm.status = null; searchForm.date = ''; handleSearch(); };
+                const handleView = (row) => { detail.value = { ...row }; dialogVisible.value = true; };
+                const handleCancel = async (row) => { try { await ElMessageBox.confirm('确定取消该预约?', '提示', { type: 'warning' }); await axios.put(`/sysadmin/reservation/${row.id}/cancel`); ElMessage.success('取消成功'); fetchList(); } catch (e) { if (e !== 'cancel') ElMessage.error('取消失败'); } };
+                const handleSizeChange = (val) => { page.size = val; fetchList(); };
+                const handleCurrentChange = (val) => { page.current = val; fetchList(); };
+                const isExpired = (row) => {
+                    if (!row || !row.reservationDate || !row.endTime) return false;
+                    const now = new Date();
+                    const reservationDate = new Date(row.reservationDate);
+                    const [hours, minutes] = row.endTime.split(':');
+                    reservationDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                    return now > reservationDate;
+                };
+                const goTo = (path) => { window.location.href = path; };
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+                onMounted(() => { fetchList(); });
+                return { loading, reservationList, dialogVisible, detail, searchForm, page, handleSearch, resetSearch, handleView, handleCancel, handleSizeChange, handleCurrentChange, isExpired, goTo, logout };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

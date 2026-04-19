@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论坛管理 - 高校自习室智能管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        .admin-container { min-height: 100vh; }
+        .admin-header { background: #001529; color: white; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 20px; font-weight: 600; }
+        .user-info { display: flex; align-items: center; gap: 16px; }
+        .admin-layout { display: flex; min-height: calc(100vh - 64px); }
+        .admin-sidebar { width: 200px; background: #001529; min-height: calc(100vh - 64px); }
+        .sidebar-menu { list-style: none; padding: 16px 0; }
+        .sidebar-menu li { padding: 12px 24px; color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.3s; }
+        .sidebar-menu li:hover, .sidebar-menu li.active { color: white; background: #1890ff; }
+        .admin-main { flex: 1; padding: 24px; }
+        .page-title { font-size: 24px; margin-bottom: 24px; color: #1f2f3d; }
+        .content-card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        .search-bar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); text-align: center; }
+        .stat-title { color: #666; font-size: 14px; margin-bottom: 8px; }
+        .stat-value { font-size: 28px; font-weight: 600; color: #1890ff; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="admin-container">
+            <header class="admin-header">
+                <div class="logo">高校自习室智能管理系统</div>
+                <div class="user-info">
+                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                    <el-button type="danger" size="small" @click="logout">退出</el-button>
+                </div>
+            </header>
+            <div class="admin-layout">
+                <aside class="admin-sidebar">
+                    <ul class="sidebar-menu">
+                        <li @click="goTo('/sysadmin/dashboard')">控制台</li>
+                        <li @click="goTo('/sysadmin/user')">用户管理</li>
+                        <li @click="goTo('/sysadmin/studyroom')">自习室管理</li>
+                        <li @click="goTo('/sysadmin/reservation')">预约管理</li>
+                        <li @click="goTo('/sysadmin/notice')">公告管理</li>
+                        <li class="active" @click="goTo('/sysadmin/forum')">论坛管理</li>
+                        <li @click="goTo('/sysadmin/statistics')">数据统计</li>
+                    </ul>
+                </aside>
+                <main class="admin-main">
+                    <h1 class="page-title">论坛管理</h1>
+
+                    <!-- 统计概览 -->
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-title">帖子总数</div>
+                            <div class="stat-value" v-text="summary.total">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">待审核</div>
+                            <div class="stat-value" style="color: #faad14;" v-text="summary.pending">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">已审核</div>
+                            <div class="stat-value" style="color: #52c41a;" v-text="summary.approved">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">已关闭/违规</div>
+                            <div class="stat-value" style="color: #ff4d4f;" v-text="summary.closed">0</div>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="search-bar">
+                            <el-input v-model="searchForm.keyword" placeholder="搜索帖子标题" style="width: 200px;" clearable></el-input>
+                            <el-select v-model="searchForm.status" placeholder="帖子状态" style="width: 140px;" clearable>
+                                <el-option label="正常" :value="0"></el-option>
+                                <el-option label="待审核（上报）" :value="1"></el-option>
+                                <el-option label="已处理" :value="2"></el-option>
+                                <el-option label="已关闭" :value="3"></el-option>
+                            </el-select>
+                            <el-button type="primary" @click="handleSearch">查询</el-button>
+                            <el-button @click="resetSearch">重置</el-button>
+                            <el-button type="success" @click="showPostDialog">发布帖子</el-button>
+                        </div>
+
+                        <el-table :data="posts" v-loading="loading" border style="width: 100%;">
+                            <el-table-column type="index" label="#" width="50"></el-table-column>
+                            <el-table-column prop="title" label="帖子标题" min-width="200" show-overflow-tooltip></el-table-column>
+                            <el-table-column prop="authorName" label="发布者" width="100"></el-table-column>
+                            <el-table-column label="用户类型" width="100">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.userType === 2" type="warning" size="small">管理员</el-tag>
+                                    <el-tag v-else size="small">普通用户</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="状态" width="130">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.status === 0" type="success" size="small">正常</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 1" type="warning" size="small">待审核（上报）</el-tag>
+                                    <el-tag v-else-if="scope.row.status === 2" type="info" size="small">已处理</el-tag>
+                                    <el-tag v-else type="danger" size="small">已关闭</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="viewCount" label="浏览" width="70"></el-table-column>
+                            <el-table-column prop="replyCount" label="回复" width="70"></el-table-column>
+                            <el-table-column prop="createTime" label="发布时间" width="160">
+                                <template #default="scope">{{ formatTime(scope.row.createTime) }}</template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="240" fixed="right">
+                                <template #default="scope">
+                                    <el-button size="small" @click="viewPost(scope.row)">查看</el-button>
+                                    <el-button size="small" type="success" v-if="scope.row.status === 1"
+                                        @click="handlePostStatus(scope.row, 2)">处理通过</el-button>
+                                    <el-button size="small" type="warning" v-if="scope.row.status !== 3"
+                                        @click="handlePostStatus(scope.row, 3)">关闭</el-button>
+                                    <el-button size="small" type="danger"
+                                        @click="handleDelete(scope.row)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+
+                        <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+                            <el-pagination
+                                v-model:current-page="pagination.page"
+                                v-model:page-size="pagination.size"
+                                :total="pagination.total"
+                                :page-sizes="[10, 20, 50]"
+                                layout="total, sizes, prev, pager, next"
+                                @size-change="fetchPosts"
+                                @current-change="fetchPosts">
+                            </el-pagination>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- 发布帖子弹窗 -->
+        <el-dialog v-model="postDialogVisible" title="发布帖子" width="600px">
+            <el-form :model="postForm" label-width="80px">
+                <el-form-item label="标题">
+                    <el-input v-model="postForm.title" placeholder="请输入帖子标题"></el-input>
+                </el-form-item>
+                <el-form-item label="分类">
+                    <el-select v-model="postForm.categoryId" placeholder="请选择分类" style="width: 100%;">
+                        <el-option label="学习交流" :value="1"></el-option>
+                        <el-option label="经验分享" :value="2"></el-option>
+                        <el-option label="问题求助" :value="3"></el-option>
+                        <el-option label="闲聊灌水" :value="4"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="内容">
+                    <el-input v-model="postForm.content" type="textarea" :rows="6" placeholder="请输入帖子内容"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="postDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitPost">发布</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 帖子详情弹窗 -->
+        <el-dialog v-model="detailVisible" title="帖子详情" width="700px">
+            <div v-if="currentPost">
+                <h3 style="margin-bottom: 12px;">{{currentPost.title}}</h3>
+                <div style="color: #666; font-size: 13px; margin-bottom: 16px;">
+                    发布者：{{currentPost.authorName}} &nbsp;|&nbsp; 时间：{{formatTime(currentPost.createTime)}}
+                </div>
+                <div style="background: #f9f9f9; padding: 16px; border-radius: 6px; white-space: pre-wrap; line-height: 1.8; color: #333;">
+                    {{currentPost.content}}
+                </div>
+            </div>
+            <template #footer>
+                <el-button @click="detailVisible = false">关闭</el-button>
+                <el-button type="success" v-if="currentPost && currentPost.status === 1"
+                    @click="handlePostStatus(currentPost, 2); detailVisible = false">处理通过</el-button>
+                <el-button type="warning" v-if="currentPost && currentPost.status !== 3"
+                    @click="handlePostStatus(currentPost, 3); detailVisible = false">关闭帖子</el-button>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        const { createApp, ref, reactive, onMounted } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+
+        createApp({
+            setup() {
+                const loading = ref(false);
+                const detailVisible = ref(false);
+                const postDialogVisible = ref(false);
+                const currentPost = ref(null);
+                const posts = ref([]);
+                const summary = reactive({ total: 0, pending: 0, approved: 0, closed: 0 });
+                const searchForm = reactive({ keyword: '', status: null });
+                const pagination = reactive({ page: 1, size: 10, total: 0 });
+                const postForm = reactive({ title: '', content: '', categoryId: 1 });
+
+                const fetchPosts = async () => {
+                    loading.value = true;
+                    try {
+                        const params = { page: pagination.page, size: pagination.size };
+                        if (searchForm.keyword) params.keyword = searchForm.keyword;
+                        if (searchForm.status !== null && searchForm.status !== '') params.status = searchForm.status;
+                        const res = await axios.get('/sysadmin/forum/posts', { params });
+                        if (res.data.code === 200) {
+                            posts.value = res.data.data.records || [];
+                            pagination.total = res.data.data.total || 0;
+                        }
+                    } catch (e) {}
+                    finally { loading.value = false; }
+                };
+
+                const fetchSummary = async () => {
+                    try {
+                        const [totalRes, pendingRes, approvedRes, closedRes] = await Promise.all([
+                            axios.get('/sysadmin/forum/posts', { params: { page: 1, size: 1 } }),
+                            axios.get('/sysadmin/forum/posts', { params: { page: 1, size: 1, status: 1 } }),
+                            axios.get('/sysadmin/forum/posts', { params: { page: 1, size: 1, status: 2 } }),
+                            axios.get('/sysadmin/forum/posts', { params: { page: 1, size: 1, status: 3 } })
+                        ]);
+                        if (totalRes.data.code === 200) summary.total = totalRes.data.data.total;
+                        if (pendingRes.data.code === 200) summary.pending = pendingRes.data.data.total;
+                        if (approvedRes.data.code === 200) summary.approved = approvedRes.data.data.total;
+                        if (closedRes.data.code === 200) summary.closed = closedRes.data.data.total;
+                    } catch (e) {}
+                };
+
+                const handleSearch = () => { pagination.page = 1; fetchPosts(); };
+                const resetSearch = () => {
+                    searchForm.keyword = '';
+                    searchForm.status = null;
+                    pagination.page = 1;
+                    fetchPosts();
+                };
+
+                const viewPost = (row) => {
+                    currentPost.value = row;
+                    detailVisible.value = true;
+                };
+
+                const handlePostStatus = async (row, status) => {
+                    try {
+                        const res = await axios.put(`/sysadmin/forum/post/${row.id}/status?status=${status}`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('操作成功');
+                            fetchPosts();
+                            fetchSummary();
+                        }
+                    } catch (e) { ElMessage.error('操作失败'); }
+                };
+
+                const handleDelete = (row) => {
+                    ElMessageBox.confirm(`确认删除帖子"${row.title}"？`, '警告', {
+                        type: 'warning',
+                        confirmButtonText: '确认删除',
+                        cancelButtonText: '取消'
+                    }).then(async () => {
+                        try {
+                            const res = await axios.delete(`/sysadmin/forum/post/${row.id}`);
+                            if (res.data.code === 200) {
+                                ElMessage.success('删除成功');
+                                fetchPosts();
+                                fetchSummary();
+                            }
+                        } catch (e) { ElMessage.error('删除失败'); }
+                    }).catch(() => {});
+                };
+
+                const formatTime = (t) => t ? t.replace('T', ' ').substring(0, 16) : '-';
+
+                const showPostDialog = () => {
+                    postForm.title = '';
+                    postForm.content = '';
+                    postForm.categoryId = 1;
+                    postDialogVisible.value = true;
+                };
+
+                const submitPost = async () => {
+                    if (!postForm.title.trim()) {
+                        ElMessage.warning('请输入帖子标题');
+                        return;
+                    }
+                    if (!postForm.content.trim()) {
+                        ElMessage.warning('请输入帖子内容');
+                        return;
+                    }
+                    try {
+                        const res = await axios.post('/sysadmin/forum/post', postForm);
+                        if (res.data.code === 200) {
+                            ElMessage.success('发布成功');
+                            postDialogVisible.value = false;
+                            fetchPosts();
+                            fetchSummary();
+                        }
+                    } catch (e) { ElMessage.error('发布失败'); }
+                };
+
+                const goTo = (path) => { window.location.href = path; };
+                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+
+                onMounted(() => { fetchPosts(); fetchSummary(); });
+
+                return { loading, detailVisible, postDialogVisible, currentPost, posts, summary, searchForm, pagination, postForm,
+                    fetchPosts, handleSearch, resetSearch, viewPost, handlePostStatus, handleDelete, formatTime, showPostDialog, submitPost, goTo, logout };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>
