@@ -17,6 +17,7 @@ com\studyroom\common\GlobalExceptionHandler.class
 com\studyroom\service\impl\NoticeServiceImpl.class
 com\studyroom\entity\Announcement.class
 com\studyroom\service\impl\ForumReplyServiceImpl.class
+com\studyroom\service\UserMoralRecordService.class
 com\studyroom\service\impl\UserServiceImpl.class
 com\studyroom\common\Result.class
 com\studyroom\entity\ForumPost.class
@@ -44,7 +45,9 @@ com\studyroom\config\CorsConfig.class
 com\studyroom\controller\RoomAdminController.class
 com\studyroom\service\UserService.class
 com\studyroom\entity\StudyStatistics.class
+com\studyroom\service\impl\UserMoralRecordServiceImpl.class
 com\studyroom\controller\AuthController.class
+com\studyroom\mapper\UserMoralRecordMapper.class
 com\studyroom\controller\SysAdminController.class
 com\studyroom\service\impl\ForumPostServiceImpl.class
 com\studyroom\mapper\UserRoleMapper.class
@@ -53,6 +56,7 @@ com\studyroom\service\SeatService.class
 com\studyroom\service\ForumPostService.class
 com\studyroom\entity\Role.class
 com\studyroom\entity\User.class
+com\studyroom\entity\UserMoralRecord.class
 com\studyroom\service\NoticeService.class
 com\studyroom\config\MybatisPlusConfig.class
 com\studyroom\service\impl\ReservationServiceImpl.class

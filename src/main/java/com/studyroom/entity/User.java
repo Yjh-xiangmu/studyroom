@@ -2,6 +2,7 @@ package com.studyroom.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -26,6 +27,10 @@ public class User {
     // 新增：违约次数和连续签到天数
     private Integer violationCount;
     private Integer continuousCheckinDays;
+
+    // 德育分
+    private BigDecimal moralScore;
+    private Integer moralRank;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

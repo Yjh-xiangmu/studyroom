@@ -82,8 +82,7 @@
                             <el-table-column label="操作" width="200" fixed="right">
                                 <template #default="scope">
                                     <el-button type="primary" size="small" @click="handleView(scope.row)">查看</el-button>
-                                    <el-button v-if="scope.row.status === 2" type="warning" size="small" @click="handleClose(scope.row)">关闭</el-button>
-                                    <el-button v-if="scope.row.status === 3" type="success" size="small" @click="handleReopen(scope.row)">重新发布</el-button>
+                                    <el-button type="warning" size="small" @click="handleEdit(scope.row)">修改</el-button>
                                     <el-button type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
                                 </template>
                             </el-table-column>
@@ -168,6 +167,7 @@
                 const resetSearch = () => { searchForm.title = ''; searchForm.status = null; handleSearch(); };
                 const handleAdd = () => { isEdit.value = false; form.id = null; form.title = ''; form.content = ''; form.isTop = 0; dialogVisible.value = true; };
                 const handleView = (row) => { currentNotice.value = row; viewDialogVisible.value = true; };
+                const handleEdit = (row) => { isEdit.value = true; form.id = row.id; form.title = row.title; form.content = row.content; form.isTop = row.isTop || 0; dialogVisible.value = true; };
                 const handleSave = async () => {
                     try {
                         await formRef.value.validate();
@@ -177,22 +177,6 @@
                         if (res.data.code === 200) { ElMessage.success('保存成功'); dialogVisible.value = false; fetchList(); }
                         else ElMessage.error(res.data.message || '保存失败');
                     } catch (e) { if (e !== 'cancel') ElMessage.error('保存失败'); }
-                };
-                const handleClose = async (row) => {
-                    try {
-                        await ElMessageBox.confirm('确定关闭该公告？关闭后用户将看不到。', '提示', { type: 'warning' });
-                        const res = await axios.put(`/sysadmin/notice/${row.id}/close`);
-                        if (res.data.code === 200) { ElMessage.success('已关闭'); fetchList(); }
-                        else ElMessage.error(res.data.message || '操作失败');
-                    } catch (e) { if (e !== 'cancel') ElMessage.error('操作失败'); }
-                };
-                const handleReopen = async (row) => {
-                    try {
-                        await ElMessageBox.confirm('确定重新发布该公告？', '提示', { type: 'warning' });
-                        const res = await axios.put(`/sysadmin/notice/${row.id}/publish`);
-                        if (res.data.code === 200) { ElMessage.success('已重新发布'); fetchList(); }
-                        else ElMessage.error(res.data.message || '操作失败');
-                    } catch (e) { if (e !== 'cancel') ElMessage.error('操作失败'); }
                 };
                 const handleDelete = async (row) => {
                     try {
@@ -207,7 +191,7 @@
                 const goTo = (path) => { window.location.href = path; };
                 const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
                 onMounted(() => { fetchList(); });
-                return { loading, noticeList, dialogVisible, viewDialogVisible, currentNotice, isEdit, formRef, form, rules, searchForm, page, handleSearch, resetSearch, handleAdd, handleView, handleSave, handleClose, handleReopen, handleDelete, handleSizeChange, handleCurrentChange, goTo, logout };
+                return { loading, noticeList, dialogVisible, viewDialogVisible, currentNotice, isEdit, formRef, form, rules, searchForm, page, handleSearch, resetSearch, handleAdd, handleView, handleEdit, handleSave, handleDelete, handleSizeChange, handleCurrentChange, goTo, logout };
             }
         }).use(ElementPlus).mount('#app');
     </script>

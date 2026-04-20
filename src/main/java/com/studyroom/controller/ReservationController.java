@@ -5,10 +5,13 @@ import com.studyroom.common.Result;
 import com.studyroom.entity.Reservation;
 import com.studyroom.entity.Seat;
 import com.studyroom.entity.StudyRoom;
+import com.studyroom.entity.SysSetting;
 import com.studyroom.entity.User;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
 import com.studyroom.service.StudyRoomService;
+import com.studyroom.service.SysSettingService;
+import com.studyroom.service.UserMoralRecordService;
 import com.studyroom.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +38,9 @@ public class ReservationController {
 
     @Autowired
     private SeatService seatService;
+
+    @Autowired
+    private SysSettingService sysSettingService;
 
     @GetMapping("/my")
     public Result<List<Map<String, Object>>> getMyReservations(HttpSession session) {
@@ -63,7 +69,10 @@ public class ReservationController {
             map.put("roomName", room != null ? room.getName() : "未知");
             map.put("seatNumber", seat != null ? seat.getSeatNumber() : "未知");
             map.put("building", room != null ? room.getBuilding() : "未知");
-            
+            // status=3 且有cancelReason（定时任务自动违约）则标记为违约
+            map.put("isViolation", r.getStatus() != null && r.getStatus() == 3
+                    && r.getCancelReason() != null && !r.getCancelReason().isEmpty());
+
             result.add(map);
         }
         
@@ -134,7 +143,7 @@ public class ReservationController {
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Reservation::getSeatId, seatId);
         wrapper.eq(Reservation::getReservationDate, reservationDate);
-        wrapper.ne(Reservation::getStatus, 3); // 排除已取消的
+        wrapper.notIn(Reservation::getStatus, 3, 4); // 排除已违约/已取消
         
         List<Reservation> reservations = reservationService.list(wrapper);
         
@@ -154,6 +163,9 @@ public class ReservationController {
      */
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private UserMoralRecordService userMoralRecordService;
     
     @GetMapping("/seat/{seatId}/occupied-list")
     public Result<List<Map<String, Object>>> getSeatOccupiedList(@PathVariable Long seatId, 
@@ -170,7 +182,7 @@ public class ReservationController {
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Reservation::getSeatId, seatId);
         wrapper.eq(Reservation::getReservationDate, reservationDate);
-        wrapper.ne(Reservation::getStatus, 3); // 排除已取消的
+        wrapper.notIn(Reservation::getStatus, 3, 4); // 排除已违约/已取消
         wrapper.orderByAsc(Reservation::getStartTime);
         
         List<Reservation> reservations = reservationService.list(wrapper);
@@ -182,6 +194,12 @@ public class ReservationController {
             map.put("userId", r.getUserId());
             map.put("startTime", r.getStartTime().toString());
             map.put("endTime", r.getEndTime().toString());
+            // 已完成的预约：实际占用到签退时间，之后的时段可重新预约
+            String effectiveEndTime = r.getEndTime().toString();
+            if (r.getStatus() == 2 && r.getCheckOutTime() != null) {
+                effectiveEndTime = r.getCheckOutTime().toLocalTime().toString();
+            }
+            map.put("effectiveEndTime", effectiveEndTime);
             map.put("status", r.getStatus());
             
             // 获取用户信息
@@ -213,6 +231,19 @@ public class ReservationController {
         if (user == null) {
             return Result.error(401, "未登录");
         }
+
+        // 检查用户是否被禁约
+        User currentUser = userService.getById(user.getId());
+        int maxViolation = 3;
+        SysSetting maxSetting = sysSettingService.getOne(
+                new LambdaQueryWrapper<SysSetting>().eq(SysSetting::getSettingKey, "max_violation_limit"));
+        if (maxSetting != null) {
+            try { maxViolation = Integer.parseInt(maxSetting.getSettingValue()); } catch (Exception ignored) {}
+        }
+        int violationCount = currentUser.getViolationCount() != null ? currentUser.getViolationCount() : 0;
+        if (violationCount >= maxViolation) {
+            return Result.error(403, "您的违约次数已达上限，暂时无法预约");
+        }
         
         Long roomId = Long.valueOf(params.get("roomId").toString());
         Long seatId = Long.valueOf(params.get("seatId").toString());
@@ -220,9 +251,15 @@ public class ReservationController {
         LocalTime startTime = LocalTime.parse(params.get("startTime").toString());
         LocalTime endTime = LocalTime.parse(params.get("endTime").toString());
         
-        // 1. 允许预约过去时间，只在签到时检查是否过期
-        // 注意：根据需求，用户可以向前预约，签到时才提示已过期
-        
+        // 1. 禁止预约过去时间
+        LocalDate today = LocalDate.now();
+        if (reservationDate.isBefore(today)) {
+            return Result.error(400, "不能预约过去的日期");
+        }
+        if (reservationDate.equals(today) && startTime.isBefore(LocalTime.now())) {
+            return Result.error(400, "不能预约已过去的时间段");
+        }
+
         // 2. 检查时间合理性
         if (startTime.isAfter(endTime) || startTime.equals(endTime)) {
             return Result.error(400, "结束时间必须晚于开始时间");
@@ -243,28 +280,34 @@ public class ReservationController {
         LambdaQueryWrapper<Reservation> conflictWrapper = new LambdaQueryWrapper<>();
         conflictWrapper.eq(Reservation::getSeatId, seatId);
         conflictWrapper.eq(Reservation::getReservationDate, reservationDate);
-        conflictWrapper.ne(Reservation::getStatus, 3); // 排除已取消的
-        
+        conflictWrapper.notIn(Reservation::getStatus, 3, 4); // 排除已违约和已取消
+
         List<Reservation> existingReservations = reservationService.list(conflictWrapper);
-        
+
         for (Reservation existing : existingReservations) {
-            // 检查时间是否重叠
-            if (isTimeOverlap(startTime, endTime, existing.getStartTime(), existing.getEndTime())) {
+            // 已完成的预约：以实际签退时间为准（签退后立即释放剩余时段）
+            LocalTime effectiveEnd = existing.getEndTime();
+            if (existing.getStatus() == 2 && existing.getCheckOutTime() != null) {
+                effectiveEnd = existing.getCheckOutTime().toLocalTime();
+            }
+            if (isTimeOverlap(startTime, endTime, existing.getStartTime(), effectiveEnd)) {
                 return Result.error(400, "该时间段已被预约，请选择其他时段或座位");
             }
         }
-        
-        // 6. 检查用户是否有冲突的预约（同一用户不能在同一时间段预约多个座位）
-        // 注意：根据需求，不同用户可以预约同一座位的同一时段
-        // 这里只检查同一用户是否在同一时间段有多个预约
+
+        // 6. 检查用户是否有冲突的预约
         LambdaQueryWrapper<Reservation> userConflictWrapper = new LambdaQueryWrapper<>();
         userConflictWrapper.eq(Reservation::getUserId, user.getId());
         userConflictWrapper.eq(Reservation::getReservationDate, reservationDate);
-        userConflictWrapper.ne(Reservation::getStatus, 3);
-        
+        userConflictWrapper.notIn(Reservation::getStatus, 3, 4);
+
         List<Reservation> userReservations = reservationService.list(userConflictWrapper);
         for (Reservation existing : userReservations) {
-            if (isTimeOverlap(startTime, endTime, existing.getStartTime(), existing.getEndTime())) {
+            LocalTime effectiveEnd = existing.getEndTime();
+            if (existing.getStatus() == 2 && existing.getCheckOutTime() != null) {
+                effectiveEnd = existing.getCheckOutTime().toLocalTime();
+            }
+            if (isTimeOverlap(startTime, endTime, existing.getStartTime(), effectiveEnd)) {
                 return Result.error(400, "您在该时间段已有其他预约，不能重复预约");
             }
         }
@@ -342,9 +385,11 @@ public class ReservationController {
         reservation.setStatus(1);
         reservation.setCheckInTime(now);
         reservation.setUpdateTime(now);
-        
+
         boolean success = reservationService.updateById(reservation);
         if (success) {
+            Seat checkInSeat = seatService.getById(reservation.getSeatId());
+            if (checkInSeat != null) { checkInSeat.setStatus(2); seatService.updateById(checkInSeat); }
             return Result.success("签到成功");
         }
         return Result.error(500, "签到失败");
@@ -373,9 +418,12 @@ public class ReservationController {
         reservation.setStatus(2);
         reservation.setCheckOutTime(now);
         reservation.setUpdateTime(now);
-        
+
         boolean success = reservationService.updateById(reservation);
         if (success) {
+            Seat checkOutSeat = seatService.getById(reservation.getSeatId());
+            if (checkOutSeat != null) { checkOutSeat.setStatus(1); seatService.updateById(checkOutSeat); }
+            userMoralRecordService.checkAndAwardMoralScore(user.getId());
             return Result.success("签退成功");
         }
         return Result.error(500, "签退失败");
@@ -393,12 +441,14 @@ public class ReservationController {
             return Result.error(404, "预约不存在");
         }
         
-        reservation.setStatus(3);
+        reservation.setStatus(4);
         reservation.setCancelTime(LocalDateTime.now());
         reservation.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = reservationService.updateById(reservation);
         if (success) {
+            Seat cancelSeat = seatService.getById(reservation.getSeatId());
+            if (cancelSeat != null) { cancelSeat.setStatus(1); seatService.updateById(cancelSeat); }
             return Result.success("取消成功");
         }
         return Result.error(500, "取消失败");

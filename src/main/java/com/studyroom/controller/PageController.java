@@ -178,11 +178,7 @@ public class PageController {
 
     @GetMapping("/admin/notice")
     public String adminNotice(HttpSession session) {
-        User user = (User) session.getAttribute("user");
-        if (user == null || user.getUserType() != 2) {
-            return "redirect:/login";
-        }
-        return "roomAdmin/notice";
+        return "redirect:/admin/dashboard";
     }
 
     @GetMapping("/admin/profile")

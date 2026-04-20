@@ -121,14 +121,6 @@
                             <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
                                 <div style="font-size: 28px; font-weight: 700; color: #389e0d;">{{violationInfo.continuousCheckinDays}}</div>
                                 <div style="color: #135200; font-size: 14px; margin-top: 8px;">连续签到天数</div>
-                                <div style="color: #999; font-size: 12px; margin-top: 4px;">奖励线 {{violationInfo.rewardDays}} 天</div>
-                            </div>
-                            <div class="v-stat-card" :style="violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? 'background: #e6fffb; border: 1px solid #87e8de;' : 'background: #f5f7fa; border: 1px solid #e8e8e8;'">
-                                <div style="font-size: 28px; font-weight: 700; color: #0068DD;">{{violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? '✓' : violationInfo.rewardDays - violationInfo.continuousCheckinDays}}</div>
-                                <div style="font-size: 14px; margin-top: 8px;" :style="violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? 'color: #006d75;' : 'color: #666;'">
-                                    {{violationInfo.continuousCheckinDays >= violationInfo.rewardDays ? '可加德育分' : '天后可加德育分'}}
-                                </div>
-                                <div style="color: #999; font-size: 12px; margin-top: 4px;">连续打卡积累</div>
                             </div>
                         </div>
 
@@ -154,6 +146,47 @@
                             </el-table>
                         </div>
                         <el-empty v-else description="暂无违约记录，继续保持！" :image-size="60"></el-empty>
+                    </div>
+
+                    <!-- 德育分 -->
+                    <div class="violation-card" style="margin-bottom: 24px;">
+                        <div class="violation-header">
+                            <h3 style="color: #1f2f3d;">德育加分</h3>
+                            <el-tag type="warning">累积学习时长换取德育分，最高+5分</el-tag>
+                        </div>
+                        <div class="violation-stats">
+                            <div class="v-stat-card" style="background: #fff7e6; border: 1px solid #ffd591;">
+                                <div style="font-size: 28px; font-weight: 700; color: #d46b08;">{{moralInfo.moralScore || 0}}</div>
+                                <div style="color: #8c5000; font-size: 14px; margin-top: 8px;">已获德育加分</div>
+                                <div style="color: #999; font-size: 12px; margin-top: 4px;">上限 5 分</div>
+                            </div>
+                            <div class="v-stat-card" style="background: #f0f5ff; border: 1px solid #adc6ff;">
+                                <div style="font-size: 22px; font-weight: 700; color: #2f54eb;">{{moralInfo.rankName || '未入段'}}</div>
+                                <div style="color: #1d39c4; font-size: 14px; margin-top: 8px;">当前段位</div>
+                                <div style="color: #999; font-size: 12px; margin-top: 4px;">累计 {{moralInfo.totalHours || 0}} 小时</div>
+                            </div>
+                            <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
+                                <div style="font-size: 22px; font-weight: 700; color: #389e0d;">
+                                    {{moralInfo.hoursToNext != null ? moralInfo.hoursToNext + 'h' : '已满级'}}
+                                </div>
+                                <div style="color: #135200; font-size: 14px; margin-top: 8px;">距下一段位</div>
+                                <div style="color: #999; font-size: 12px; margin-top: 4px;">
+                                    {{moralInfo.nextRankHours != null ? '需达 ' + moralInfo.nextRankHours + ' 小时' : '学神段位已达成'}}
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="moralInfo.records && moralInfo.records.length > 0" style="margin-top: 16px;">
+                            <h4 style="margin-bottom: 12px; color: #d46b08;">获奖记录</h4>
+                            <el-table :data="moralInfo.records" border size="small">
+                                <el-table-column prop="rankName" label="段位" width="100"></el-table-column>
+                                <el-table-column prop="scoreAwarded" label="获得德育分" width="110"></el-table-column>
+                                <el-table-column prop="totalHours" label="达成时累计时长(h)" width="160"></el-table-column>
+                                <el-table-column prop="createTime" label="获奖时间" min-width="140">
+                                    <template #default="scope">{{scope.row.createTime ? scope.row.createTime.replace('T',' ').substring(0,16) : '-'}}</template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
+                        <el-empty v-else description="累计学习时长达到10小时即可获得第一个段位" :image-size="60"></el-empty>
                     </div>
 
                     <!-- 学习时长统计图表 -->
@@ -207,6 +240,7 @@
                 const form = reactive({ username: '', realName: '', email: '', phone: '' });
                 const violationInfo = reactive({ violationCount: 0, continuousCheckinDays: 0, isBanned: false, maxViolation: 3, rewardDays: 7 });
                 const violationRecords = ref([]);
+                const moralInfo = reactive({ currentRank: 0, rankName: '未入段', moralScore: 0, totalHours: 0, nextRankHours: null, hoursToNext: null, records: [] });
                 let studyChart = null;
 
                 const fetchUser = async () => {
@@ -233,6 +267,13 @@
                             Object.assign(violationInfo, res.data.data);
                             violationRecords.value = res.data.data.records || [];
                         }
+                    } catch (e) {}
+                };
+
+                const fetchMoralInfo = async () => {
+                    try {
+                        const res = await axios.get('/api/user/moral-info');
+                        if (res.data.code === 200) Object.assign(moralInfo, res.data.data);
                     } catch (e) {}
                 };
 
@@ -285,10 +326,11 @@
                     fetchUser();
                     fetchStats();
                     fetchViolationInfo();
+                    fetchMoralInfo();
                     nextTick(() => fetchChart('week'));
                 });
 
-                return { currentUser, saving, stats, form, chartType, violationInfo, violationRecords, saveProfile, switchChart, logout, UserFilled };
+                return { currentUser, saving, stats, form, chartType, violationInfo, violationRecords, moralInfo, saveProfile, switchChart, logout, UserFilled };
             }
         }).use(ElementPlus).mount('#app');
     </script>

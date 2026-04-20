@@ -130,10 +130,10 @@
                                 <el-date-picker v-model="form.date" type="date" placeholder="选择日期" :disabled-date="disabledDate" @change="onDateChange" style="width: 100%;"></el-date-picker>
                             </el-form-item>
                             <el-form-item label="开始时间">
-                                <el-time-select v-model="form.startTime" start="08:00" step="00:30" end="22:00" placeholder="选择时间" style="width: 100%;"></el-time-select>
+                                <el-time-picker v-model="form.startTime" format="HH:mm" value-format="HH:mm" placeholder="选择时间" :disabled-hours="disabledStartHours" style="width: 100%;" @change="onTimeChange"></el-time-picker>
                             </el-form-item>
                             <el-form-item label="结束时间">
-                                <el-time-select v-model="form.endTime" start="08:00" step="00:30" end="22:00" placeholder="选择时间" style="width: 100%;"></el-time-select>
+                                <el-time-picker v-model="form.endTime" format="HH:mm" value-format="HH:mm" placeholder="选择时间" style="width: 100%;" @change="onTimeChange"></el-time-picker>
                             </el-form-item>
                         </el-form>
                         
@@ -219,8 +219,9 @@
                 };
 
                 const disabledDate = (time) => {
-                    // 允许选择任何日期（包括过去），签到时才检查是否过期
-                    return false;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return time.getTime() < today.getTime();
                 };
 
                 const goBack = () => {
@@ -249,27 +250,25 @@
                     }
                 };
                 
-                // 时间分段可视化
+                // 时间分段可视化（使用effectiveEndTime）
                 const timeSegments = computed(() => {
                     const segments = [];
                     const startHour = 8;
-                    const endHour = 22;
-                    const totalHours = endHour - startHour;
                     const segmentCount = 28; // 每30分钟一段
-                    
+
                     for (let i = 0; i < segmentCount; i++) {
                         const segStart = startHour * 60 + i * 30;
                         const segEnd = segStart + 30;
-                        
-                        // 检查该时间段是否被占用
+
                         const occupied = occupiedList.value.some(item => {
                             const [startH, startM] = item.startTime.split(':').map(Number);
-                            const [endH, endM] = item.endTime.split(':').map(Number);
+                            const effEnd = item.effectiveEndTime || item.endTime;
+                            const [endH, endM] = effEnd.split(':').map(Number);
                             const itemStart = startH * 60 + startM;
                             const itemEnd = endH * 60 + endM;
                             return segStart < itemEnd && segEnd > itemStart;
                         });
-                        
+
                         segments.push({
                             occupied,
                             label: `${Math.floor(segStart/60)}:${(segStart%60).toString().padStart(2,'0')}-${Math.floor(segEnd/60)}:${(segEnd%60).toString().padStart(2,'0')}`
@@ -277,11 +276,24 @@
                     }
                     return segments;
                 });
-                
-                // 检查是否有冲突
+
+                // 禁用开放时间外的小时（08-22）
+                const disabledStartHours = () => {
+                    const hours = [];
+                    for (let h = 0; h < 8; h++) hours.push(h);
+                    for (let h = 22; h < 24; h++) hours.push(h);
+                    return hours;
+                };
+
+                const onTimeChange = () => { /* hasConflict computed自动更新 */ };
+
+                // 检查是否有冲突（使用effectiveEndTime）
                 const hasConflict = computed(() => {
                     if (!form.startTime || !form.endTime) return false;
-                    return occupiedList.value.some(item => isTimeOverlap(form.startTime, form.endTime, item.startTime, item.endTime));
+                    return occupiedList.value.some(item => {
+                        const effEnd = item.effectiveEndTime || item.endTime;
+                        return isTimeOverlap(form.startTime, form.endTime, item.startTime, effEnd);
+                    });
                 });
                 
                 // 检查时间是否重叠
@@ -319,7 +331,8 @@
                     
                     // 检查是否与已预约时段冲突
                     for (const occupied of occupiedList.value) {
-                        if (isTimeOverlap(form.startTime, form.endTime, occupied.startTime, occupied.endTime)) {
+                        const effEnd = occupied.effectiveEndTime || occupied.endTime;
+                        if (isTimeOverlap(form.startTime, form.endTime, occupied.startTime, effEnd)) {
                             ElMessage.error(`该时间段与 ${occupied.userName} 的预约 ${occupied.startTime}-${occupied.endTime} 冲突，请选择其他时段`);
                             return;
                         }
@@ -360,10 +373,10 @@
                     onDateChange();
                 });
 
-                return { 
+                return {
                     currentUser, room, seat, form, submitting, occupiedList,
-                    timeSegments, hasConflict,
-                    disabledDate, goBack, submitReserve, onDateChange, fetchOccupiedList,
+                    timeSegments, hasConflict, disabledStartHours,
+                    disabledDate, goBack, submitReserve, onDateChange, fetchOccupiedList, onTimeChange,
                     getStatusText, getStatusClass, logout, UserFilled, Warning, Calendar
                 };
             }

@@ -8,10 +8,12 @@ import com.studyroom.entity.Seat;
 import com.studyroom.entity.StudyRoom;
 import com.studyroom.entity.SysSetting;
 import com.studyroom.entity.User;
+import com.studyroom.entity.UserMoralRecord;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
 import com.studyroom.service.StudyRoomService;
 import com.studyroom.service.SysSettingService;
+import com.studyroom.service.UserMoralRecordService;
 import com.studyroom.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -43,6 +45,9 @@ public class UserController {
 
     @Autowired
     private SysSettingService sysSettingService;
+
+    @Autowired
+    private UserMoralRecordService userMoralRecordService;
 
     @GetMapping("/info")
     public Result<User> getUserInfo(HttpSession session) {
@@ -219,9 +224,11 @@ public class UserController {
             day = day.minusDays(1);
         }
 
-        // 违约记录列表
+        // 违约记录列表（仅系统自动违约，排除用户主动取消）
         LambdaQueryWrapper<Reservation> violationWrapper = new LambdaQueryWrapper<>();
-        violationWrapper.eq(Reservation::getUserId, currentUser.getId()).eq(Reservation::getStatus, 3);
+        violationWrapper.eq(Reservation::getUserId, currentUser.getId())
+                .eq(Reservation::getStatus, 3)
+                .isNotNull(Reservation::getCancelReason);
         List<Reservation> violations = reservationService.list(violationWrapper);
         List<Map<String, Object>> records = new ArrayList<>();
         for (Reservation r : violations) {
@@ -245,6 +252,62 @@ public class UserController {
         data.put("isBanned", isBanned);
         data.put("maxViolation", maxViolation);
         data.put("rewardDays", rewardDays);
+        data.put("records", records);
+        return Result.success(data);
+    }
+
+    @GetMapping("/moral-info")
+    public Result<Map<String, Object>> getMoralInfo(HttpSession session) {
+        User sessionUser = (User) session.getAttribute("user");
+        if (sessionUser == null) {
+            return Result.error(401, "未登录");
+        }
+        User user = userService.getById(sessionUser.getId());
+
+        int currentRank = user.getMoralRank() != null ? user.getMoralRank() : 0;
+        double moralScore = user.getMoralScore() != null ? user.getMoralScore().doubleValue() : 0.0;
+
+        // 读取下一段位阈值
+        double nextHours = -1;
+        if (currentRank < 6) {
+            SysSetting nextSetting = sysSettingService.getOne(
+                    new LambdaQueryWrapper<SysSetting>().eq(SysSetting::getSettingKey,
+                            "moral_rank" + (currentRank + 1) + "_hours"));
+            if (nextSetting != null) {
+                try { nextHours = Double.parseDouble(nextSetting.getSettingValue()); } catch (Exception ignored) {}
+            }
+        }
+
+        // 累计学习时长
+        LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Reservation::getUserId, user.getId()).isNotNull(Reservation::getCheckInTime);
+        List<Reservation> list = reservationService.list(wrapper);
+        double totalHours = 0;
+        for (Reservation r : list) {
+            if (r.getCheckInTime() != null) {
+                if (r.getCheckOutTime() != null) {
+                    totalHours += java.time.Duration.between(r.getCheckInTime(), r.getCheckOutTime()).toMinutes() / 60.0;
+                } else {
+                    totalHours += 2.0;
+                }
+            }
+        }
+        totalHours = Math.round(totalHours * 10) / 10.0;
+
+        // 获取德育分记录
+        LambdaQueryWrapper<UserMoralRecord> recordWrapper = new LambdaQueryWrapper<>();
+        recordWrapper.eq(UserMoralRecord::getUserId, user.getId()).orderByAsc(UserMoralRecord::getRankLevel);
+        List<UserMoralRecord> records = userMoralRecordService.list(recordWrapper);
+
+        String[] rankNames = {"", "初学者", "进阶者", "学习达人", "自律标兵", "学霸", "学神"};
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("currentRank", currentRank);
+        data.put("rankName", currentRank > 0 ? rankNames[currentRank] : "未入段");
+        data.put("moralScore", moralScore);
+        data.put("totalHours", totalHours);
+        data.put("nextRankHours", nextHours > 0 ? nextHours : null);
+        data.put("hoursToNext", nextHours > 0 ? Math.max(0, Math.round((nextHours - totalHours) * 10) / 10.0) : null);
         data.put("records", records);
         return Result.success(data);
     }

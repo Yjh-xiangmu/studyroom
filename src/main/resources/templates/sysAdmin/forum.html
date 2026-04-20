@@ -83,6 +83,7 @@
                             </el-select>
                             <el-button type="primary" @click="handleSearch">查询</el-button>
                             <el-button @click="resetSearch">重置</el-button>
+                            <el-button type="success" @click="showCreateDialog">发布帖子</el-button>
                         </div>
 
                         <el-table :data="posts" v-loading="loading" border style="width: 100%;">
@@ -160,6 +161,18 @@
                     @click="handlePostStatus(currentPost, 3); detailVisible = false">关闭</el-button>
             </template>
         </el-dialog>
+
+        <!-- 发布帖子弹窗 -->
+        <el-dialog v-model="createDialogVisible" title="发布帖子" width="600px">
+            <el-form :model="createForm" label-width="80px">
+                <el-form-item label="标题"><el-input v-model="createForm.title" placeholder="帖子标题"></el-input></el-form-item>
+                <el-form-item label="内容"><el-input v-model="createForm.content" type="textarea" :rows="6" placeholder="帖子内容"></el-input></el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="createDialogVisible=false">取消</el-button>
+                <el-button type="primary" @click="submitCreate" :loading="creating">发布</el-button>
+            </template>
+        </el-dialog>
     </div>
 
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -178,6 +191,9 @@
                 const summary = reactive({ total: 0, pending: 0, approved: 0, blocked: 0 });
                 const searchForm = reactive({ keyword: '', status: null });
                 const pagination = reactive({ page: 1, size: 10, total: 0 });
+                const createDialogVisible = ref(false);
+                const creating = ref(false);
+                const createForm = reactive({ title: '', content: '' });
 
                 const fetchPosts = async () => {
                     loading.value = true;
@@ -256,9 +272,22 @@
                 const goTo = (path) => { window.location.href = path; };
                 const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
 
+                const showCreateDialog = () => { createForm.title = ''; createForm.content = ''; createDialogVisible.value = true; };
+                const submitCreate = async () => {
+                    if (!createForm.title.trim() || !createForm.content.trim()) { ElMessage.warning('标题和内容不能为空'); return; }
+                    creating.value = true;
+                    try {
+                        const res = await axios.post('/sysadmin/forum/post', { title: createForm.title, content: createForm.content });
+                        if (res.data.code === 200) { ElMessage.success('发布成功'); createDialogVisible.value = false; fetchPosts(); fetchSummary(); }
+                        else ElMessage.error(res.data.message || '发布失败');
+                    } catch (e) { ElMessage.error('发布失败'); }
+                    finally { creating.value = false; }
+                };
+
                 onMounted(() => { fetchPosts(); fetchSummary(); });
 
                 return { loading, detailVisible, currentPost, posts, summary, searchForm, pagination,
+                    createDialogVisible, creating, createForm, showCreateDialog, submitCreate,
                     fetchPosts, handleSearch, resetSearch, viewPost, handlePostStatus, handleDelete, formatTime, goTo, logout };
             }
         }).use(ElementPlus).mount('#app');

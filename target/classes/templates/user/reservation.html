@@ -27,6 +27,8 @@
         .status-1 { background: #f6ffed; color: #52c41a; }
         .status-2 { background: #f5f5f5; color: #999; }
         .status-3 { background: #fff1f0; color: #ff4d4f; }
+        .status-4 { background: #f5f5f5; color: #999; }
+        .status-violation { background: #fff0f6; color: #c41d7f; }
         .reservation-info { display: flex; gap: 24px; color: #666; margin-bottom: 16px; }
         .reservation-info span { display: flex; align-items: center; gap: 6px; }
         .empty-state { text-align: center; padding: 60px; color: #999; }
@@ -75,7 +77,7 @@
                     <div class="reservation-card" v-for="item in reservations" :key="item.id">
                         <div class="reservation-header">
                             <span class="reservation-title">{{item.roomName}} - {{item.seatNumber}}</span>
-                            <span class="reservation-status" :class="'status-' + item.status">{{getStatusText(item.status)}}</span>
+                        <span class="reservation-status" :class="item.status === 3 ? 'status-violation' : 'status-' + item.status">{{getStatusText(item)}}</span>
                         </div>
                         <div class="reservation-info">
                             <span><el-icon><Calendar /></el-icon>{{item.reservationDate}}</span>
@@ -83,9 +85,9 @@
                             <span><el-icon><Location /></el-icon>{{item.building}}</span>
                         </div>
                         <div style="display: flex; gap: 12px;">
-                            <el-button v-if="item.status === 0" type="primary" size="small" @click="checkIn(item)">签到</el-button>
+                            <el-button v-if="item.status === 0 && !isExpired(item)" type="primary" size="small" @click="checkIn(item)">签到</el-button>
                             <el-button v-if="item.status === 1" type="success" size="small" @click="checkOut(item)">签退</el-button>
-                            <el-button v-if="item.status === 0" type="danger" size="small" @click="cancelReserve(item)">取消</el-button>
+                            <el-button v-if="item.status === 0 && !isExpired(item)" type="danger" size="small" @click="cancelReserve(item)">取消</el-button>
                         </div>
                     </div>
                 </div>
@@ -120,9 +122,16 @@
                     finally { loading.value = false; }
                 };
 
-                const getStatusText = (status) => {
-                    const map = { 0: '待签到', 1: '已签到', 2: '已完成', 3: '已取消' };
-                    return map[status] || '未知';
+                const getStatusText = (item) => {
+                    const map = { 0: '待签到', 1: '已签到', 2: '已完成', 3: '已违约', 4: '已取消' };
+                    return map[item.status] || '未知';
+                };
+
+                const isExpired = (item) => {
+                    if (item.status !== 0) return false;
+                    const now = new Date();
+                    const end = new Date(item.reservationDate + 'T' + item.endTime);
+                    return now > end;
                 };
 
                 const goToStudyRoom = () => { window.location.href = '/studyroom'; };
@@ -162,7 +171,7 @@
 
                 onMounted(() => { fetchUser(); fetchReservations(); });
 
-                return { currentUser, loading, reservations, getStatusText, goToStudyRoom, checkIn, checkOut, cancelReserve, logout, UserFilled, Loading, Document, Calendar, Clock, Location };
+                return { currentUser, loading, reservations, getStatusText, isExpired, goToStudyRoom, checkIn, checkOut, cancelReserve, logout, UserFilled, Loading, Document, Calendar, Clock, Location };
             }
         }).use(ElementPlus).mount('#app');
     </script>

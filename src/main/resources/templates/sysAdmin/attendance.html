@@ -185,26 +185,47 @@
                         <!-- Tab4: 规则设置 -->
                         <el-tab-pane label="规则设置" name="settings">
                             <div class="content-card">
-                                <div style="max-width: 500px;">
+                                <div style="max-width: 600px;">
                                     <h3 style="margin-bottom: 20px; color: #1f2f3d;">奖惩规则配置</h3>
                                     <el-form :model="settingsForm" label-width="180px">
                                         <el-form-item label="最大违约次数（禁约）">
                                             <el-input-number v-model="settingsForm.maxViolation" :min="1" :max="20" style="width: 160px;"></el-input-number>
                                             <span style="margin-left: 10px; color: #999; font-size: 13px;">次（达到后禁止预约）</span>
                                         </el-form-item>
-                                        <el-form-item label="连续签到奖励天数">
-                                            <el-input-number v-model="settingsForm.rewardDays" :min="1" :max="365" style="width: 160px;"></el-input-number>
-                                            <span style="margin-left: 10px; color: #999; font-size: 13px;">天（可导表加德育分）</span>
-                                        </el-form-item>
                                         <el-form-item>
-                                            <el-button type="primary" @click="saveSettings" :loading="settingsSaving">保存设置</el-button>
+                                            <el-button type="primary" @click="saveSettings" :loading="settingsSaving">保存违约设置</el-button>
                                         </el-form-item>
                                     </el-form>
+
+                                    <el-divider></el-divider>
+                                    <h4 style="margin-bottom: 16px; color: #1f2f3d;">德育加分段位阈值（按累计学习时长）</h4>
+                                    <el-table :data="moralRanks" border size="small" style="margin-bottom: 16px;">
+                                        <el-table-column label="段位" width="80">
+                                            <template #default="scope">第{{scope.row.level}}段</template>
+                                        </el-table-column>
+                                        <el-table-column label="段位名称" width="100">
+                                            <template #default="scope">
+                                                <el-input v-model="scope.row.name" size="small"></el-input>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="累计时长(小时)">
+                                            <template #default="scope">
+                                                <el-input-number v-model="scope.row.hours" size="small" :min="1" :max="9999" style="width: 110px;"></el-input-number>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="加分">
+                                            <template #default="scope">
+                                                <el-input-number v-model="scope.row.score" size="small" :min="0.1" :max="5" :step="0.1" :precision="1" style="width: 110px;"></el-input-number>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                    <el-button type="success" @click="saveMoralRanks" :loading="rankSaving">保存段位设置</el-button>
+
                                     <div style="background: #f0f9ff; border: 1px solid #bae0ff; padding: 16px; border-radius: 6px; margin-top: 20px; color: #1677ff; font-size: 13px; line-height: 1.8;">
                                         <b>说明：</b><br>
-                                        · 用户违约次数达到最大值后，系统将自动禁止其预约，直到管理员手动恢复。<br>
-                                        · 连续签到达到奖励天数后，可在"用户统计"中导出名单用于德育分加分。<br>
-                                        · 申诉处理：自习室管理员上报申诉后，在"申诉处理"标签中审核，通过则自动调整违约记录。
+                                        · 用户累计学习时长（完成签退的预约时长之和）达到各段位阈值时，系统自动加德育分，上限 5 分。<br>
+                                        · 每个段位只加一次，加分后不重复计算。<br>
+                                        · 违约次数达到最大值后，系统将自动禁止其预约，直到管理员手动恢复。
                                     </div>
                                 </div>
                             </div>
@@ -308,8 +329,17 @@
                 };
 
                 // --- 规则设置 ---
-                const settingsForm = reactive({ maxViolation: 3, rewardDays: 7 });
+                const settingsForm = reactive({ maxViolation: 3 });
                 const settingsSaving = ref(false);
+                const moralRanks = ref([
+                    { level: 1, name: '初学者',   hours: 10,  score: 0.5 },
+                    { level: 2, name: '进阶者',   hours: 30,  score: 0.5 },
+                    { level: 3, name: '学习达人', hours: 60,  score: 1.0 },
+                    { level: 4, name: '自律标兵', hours: 100, score: 1.0 },
+                    { level: 5, name: '学霸',     hours: 150, score: 1.0 },
+                    { level: 6, name: '学神',     hours: 200, score: 1.0 },
+                ]);
+                const rankSaving = ref(false);
 
                 const fetchSettings = async () => {
                     try {
@@ -320,9 +350,18 @@
                                     settingsForm.maxViolation = parseInt(s.settingValue);
                                     maxViolation.value = settingsForm.maxViolation;
                                 }
-                                if (s.settingKey === 'reward_checkin_days') {
-                                    settingsForm.rewardDays = parseInt(s.settingValue);
-                                    rewardDays.value = settingsForm.rewardDays;
+                                // 德育段位
+                                const rankMatch = s.settingKey.match(/^moral_rank_(\d+)$/);
+                                if (rankMatch) {
+                                    try {
+                                        const data = JSON.parse(s.settingValue);
+                                        const idx = parseInt(rankMatch[1]) - 1;
+                                        if (moralRanks.value[idx]) {
+                                            moralRanks.value[idx].hours = data.hours;
+                                            moralRanks.value[idx].score = data.score;
+                                            moralRanks.value[idx].name  = data.name;
+                                        }
+                                    } catch (e) {}
                                 }
                             });
                         }
@@ -332,15 +371,24 @@
                 const saveSettings = async () => {
                     settingsSaving.value = true;
                     try {
-                        await Promise.all([
-                            axios.put('/sysadmin/settings/max_violation_limit', { value: String(settingsForm.maxViolation) }),
-                            axios.put('/sysadmin/settings/reward_checkin_days', { value: String(settingsForm.rewardDays) })
-                        ]);
+                        await axios.put('/sysadmin/settings/max_violation_limit', { value: String(settingsForm.maxViolation) });
                         maxViolation.value = settingsForm.maxViolation;
-                        rewardDays.value = settingsForm.rewardDays;
                         ElMessage.success('设置已保存');
                     } catch (e) { ElMessage.error('保存失败'); }
                     finally { settingsSaving.value = false; }
+                };
+
+                const saveMoralRanks = async () => {
+                    rankSaving.value = true;
+                    try {
+                        await Promise.all(moralRanks.value.map(r =>
+                            axios.put(`/sysadmin/settings/moral_rank_${r.level}`, {
+                                value: JSON.stringify({ hours: r.hours, score: r.score, name: r.name })
+                            })
+                        ));
+                        ElMessage.success('段位设置已保存');
+                    } catch (e) { ElMessage.error('保存失败'); }
+                    finally { rankSaving.value = false; }
                 };
 
                 const handleTabChange = (tab) => {
@@ -361,6 +409,7 @@
                     userLoading, userList, userSearch, userPage, maxViolation, rewardDays, fetchUsers, resetUserSearch, exportUsers,
                     appealLoading, appealList, appealPage, appealTotal, fetchAppeals, handleAppeal,
                     settingsForm, settingsSaving, saveSettings,
+                    moralRanks, rankSaving, saveMoralRanks,
                     goTo, logout
                 };
             }

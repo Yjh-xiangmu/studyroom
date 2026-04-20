@@ -6,6 +6,7 @@ import com.studyroom.entity.Seat;
 import com.studyroom.entity.User;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
+import com.studyroom.service.UserMoralRecordService;
 import com.studyroom.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,6 +27,9 @@ public class ReservationCheckTask {
     @Autowired
     private SeatService seatService;
 
+    @Autowired
+    private UserMoralRecordService userMoralRecordService;
+
     // 每分钟执行一次，扫描迟到15分钟未签到的记录
     @Scheduled(cron = "0 * * * * ?")
     public void checkOverdueReservations() {
@@ -41,6 +45,7 @@ public class ReservationCheckTask {
         for (Reservation res : overdueList) {
             // 设置为违约(3)
             res.setStatus(3);
+            res.setCancelReason("预约超时未签到，系统自动违约");
             res.setUpdateTime(LocalDateTime.now());
             reservationService.updateById(res);
 
@@ -58,6 +63,35 @@ public class ReservationCheckTask {
                 user.setContinuousCheckinDays(0);
                 userService.updateById(user);
             }
+        }
+    }
+
+    // 每分钟执行一次，自动签退已超过结束时间但未签退的记录
+    @Scheduled(cron = "0 * * * * ?")
+    public void autoCheckOut() {
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+
+        LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Reservation::getStatus, 1)
+                .eq(Reservation::getReservationDate, today)
+                .le(Reservation::getEndTime, now);
+
+        List<Reservation> overdueList = reservationService.list(wrapper);
+        for (Reservation res : overdueList) {
+            LocalDateTime checkOutTime = LocalDateTime.of(res.getReservationDate(), res.getEndTime());
+            res.setStatus(2);
+            res.setCheckOutTime(checkOutTime);
+            res.setUpdateTime(LocalDateTime.now());
+            reservationService.updateById(res);
+
+            Seat seat = seatService.getById(res.getSeatId());
+            if (seat != null) {
+                seat.setStatus(1);
+                seatService.updateById(seat);
+            }
+
+            userMoralRecordService.checkAndAwardMoralScore(res.getUserId());
         }
     }
 }

@@ -164,11 +164,9 @@
                     <h3 style="margin-bottom: 24px; text-align: center;">座位选择</h3>
                     <div class="seat-legend">
                         <div class="legend-item"><div class="legend-box" style="background: #52c41a;"></div>可选</div>
-                        <div class="legend-item"><div class="legend-box" style="background: #ff4d4f;"></div>已占用</div>
                         <div class="legend-item"><div class="legend-box" style="background: #0068DD;"></div>已选择</div>
                         <div class="legend-item"><div class="legend-box" style="background: #d9d9d9; border: 1px solid #bfbfbf;"></div>维护中</div>
                         <div class="legend-item"><div class="legend-box" style="background: #fffbe6; border: 2px dashed #faad14;"></div>过道</div>
-                        <div class="legend-item"><div class="legend-box" style="background: transparent; border: 1px dashed #d9d9d9;"></div>空隙</div>
                     </div>
                     
                     <!-- 标签图例 -->
@@ -284,8 +282,7 @@
                 const getSeatClass = (seat) => {
                     if (seat.seatType === 2) return 'seat-aisle';
                     if (seat.seatType === 3) return 'seat-empty';
-                    if (seat.status === 0) return 'seat-disabled';
-                    if (seat.status === 2) return 'seat-occupied';
+                    if (seat.status === 0 || seat.status === 2) return 'seat-disabled'; // 维护中或已占用统一显示为不可用
                     if (selectedSeat.value && selectedSeat.value.id === seat.id) return 'seat-selected';
                     return 'seat-available';
                 };

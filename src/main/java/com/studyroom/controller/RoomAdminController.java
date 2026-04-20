@@ -338,6 +338,51 @@ public class RoomAdminController {
         return Result.success("添加成功");
     }
 
+    // 添加普通座位
+    @PostMapping("/room/{id}/seat")
+    public Result<Map<String, Object>> addSeat(@PathVariable Long id, HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null || user.getUserType() != 2) return Result.error(403, "无权限");
+
+        StudyRoom room = studyRoomService.getById(id);
+        if (room == null || !room.getAdminId().equals(user.getId())) return Result.error(404, "自习室不存在");
+
+        LambdaQueryWrapper<Seat> countWrapper = new LambdaQueryWrapper<>();
+        countWrapper.eq(Seat::getRoomId, id).eq(Seat::getSeatType, 1);
+        long count = seatService.count(countWrapper);
+        String seatNumber = "S" + String.format("%03d", count + 1);
+
+        Seat seat = new Seat();
+        seat.setRoomId(id);
+        seat.setSeatNumber(seatNumber);
+        seat.setSeatType(1);
+        seat.setStatus(1);
+        seat.setRowNum(0);
+        seat.setColNum(0);
+        seat.setPositionX(20);
+        seat.setPositionY(20);
+        seat.setWidth(80);
+        seat.setHeight(60);
+        seat.setCreateTime(LocalDateTime.now());
+        seat.setUpdateTime(LocalDateTime.now());
+        seatService.save(seat);
+
+        // 同步自习室容量
+        room.setCapacity(room.getCapacity() == null ? 1 : room.getCapacity() + 1);
+        studyRoomService.updateById(room);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", seat.getId());
+        data.put("seatNumber", seat.getSeatNumber());
+        data.put("positionX", seat.getPositionX());
+        data.put("positionY", seat.getPositionY());
+        data.put("width", seat.getWidth());
+        data.put("height", seat.getHeight());
+        data.put("seatType", seat.getSeatType());
+        data.put("status", seat.getStatus());
+        return Result.success("添加成功", data);
+    }
+
     // 删除座位
     @DeleteMapping("/seat/{id}")
     public Result<String> deleteSeat(@PathVariable Long id, HttpSession session) {
@@ -357,6 +402,16 @@ public class RoomAdminController {
         }
 
         seatService.removeById(id);
+
+        // 同步自习室容量（仅普通座位）
+        if (seat.getSeatType() == null || seat.getSeatType() == 1) {
+            StudyRoom roomForCapacity = studyRoomService.getById(seat.getRoomId());
+            if (roomForCapacity != null && roomForCapacity.getCapacity() != null && roomForCapacity.getCapacity() > 0) {
+                roomForCapacity.setCapacity(roomForCapacity.getCapacity() - 1);
+                studyRoomService.updateById(roomForCapacity);
+            }
+        }
+
         return Result.success("删除成功");
     }
 

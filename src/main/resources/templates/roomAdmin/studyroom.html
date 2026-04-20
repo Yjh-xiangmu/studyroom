@@ -67,6 +67,39 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             z-index: 100;
         }
+
+        /* 编辑模式删除按钮 */
+        .seat-delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ff4d4f;
+            color: white;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            z-index: 10;
+            display: none;
+        }
+
+        .editing .seat-item:hover .seat-delete-btn {
+            display: block;
+        }
+
+        /* 过道/柱子拉伸手柄 */
+        .resize-handle {
+            position: absolute;
+            background: rgba(255,255,255,0.7);
+            z-index: 20;
+        }
+        .resize-handle-e  { right: -4px; top: 20%; height: 60%; width: 8px; cursor: e-resize; }
+        .resize-handle-w  { left: -4px;  top: 20%; height: 60%; width: 8px; cursor: w-resize; }
+        .resize-handle-s  { bottom: -4px; left: 20%; width: 60%; height: 8px; cursor: s-resize; }
+        .resize-handle-n  { top: -4px;    left: 20%; width: 60%; height: 8px; cursor: n-resize; }
         
         .seat-item.dragging {
             opacity: 0.8;
@@ -233,7 +266,6 @@
                         <li @click="goTo('/admin/reservation')">预约管理</li>
                         <li @click="goTo('/admin/checkin')">出勤管理</li>
                         <li @click="goTo('/admin/forum')">论坛管理</li>
-                        <li @click="goTo('/admin/notice')">公告查看</li>
                         <li @click="goTo('/admin/profile')">个人中心</li>
                     </ul>
                 </aside>
@@ -289,9 +321,16 @@
                                         :class="{ 'is-active': isSelectMode[room.id] }">
                                         {{isSelectMode[room.id] ? '退出框选' : '框选移动'}}
                                     </el-button>
-                                    <el-button 
-                                        v-if="isEditMode[room.id]" 
-                                        size="small" 
+                                    <el-button
+                                        v-if="isEditMode[room.id]"
+                                        type="primary"
+                                        size="small"
+                                        @click="addSeat(room.id)">
+                                        添加座位
+                                    </el-button>
+                                    <el-button
+                                        v-if="isEditMode[room.id]"
+                                        size="small"
                                         @click="showAddSpecialSeat(room.id)">
                                         添加过道/空隙
                                     </el-button>
@@ -341,6 +380,16 @@
                                             <span class="seat-number">{{seat.seatNumber}}</span>
                                             <span class="seat-status">{{getSeatStatusText(seat)}}</span>
                                             <span v-if="seat.tags" class="seat-tags">{{formatTags(seat.tags)}}</span>
+                                            <!-- 删除按钮（编辑模式） -->
+                                            <div v-if="isEditMode[room.id]" class="seat-delete-btn"
+                                                @click.stop="deleteSingleSeat(seat.id, room.id)">✕</div>
+                                            <!-- 过道拉伸手柄 -->
+                                            <template v-if="isEditMode[room.id] && seat.seatType === 2">
+                                                <div class="resize-handle resize-handle-e" @mousedown.stop="onResizeStart($event, seat, room.id, 'e')"></div>
+                                                <div class="resize-handle resize-handle-w" @mousedown.stop="onResizeStart($event, seat, room.id, 'w')"></div>
+                                                <div class="resize-handle resize-handle-s" @mousedown.stop="onResizeStart($event, seat, room.id, 's')"></div>
+                                                <div class="resize-handle resize-handle-n" @mousedown.stop="onResizeStart($event, seat, room.id, 'n')"></div>
+                                            </template>
                                         </div>
                                     </template>
                                     <div v-else style="text-align: center; padding-top: 200px; color: #999;">
@@ -775,8 +824,29 @@
                 // 容器鼠标移动（框选中）
                 const onContainerMouseMove = (e, roomId) => {
                     if (!isEditMode.value[roomId]) return;
-                    
-                    // 单个座位拖拽逻辑
+
+                    // 过道拉伸逻辑
+                    if (resizingSeat.value && resizeStartData.value) {
+                        e.preventDefault();
+                        const dx = e.clientX - resizeStartData.value.mouseX;
+                        const dy = e.clientY - resizeStartData.value.mouseY;
+                        const d = resizeDir.value;
+                        const MIN = 20;
+                        if (d === 'e') {
+                            resizingSeat.value.width = Math.max(MIN, Math.round((resizeStartData.value.origW + dx) / 20) * 20);
+                        } else if (d === 'w') {
+                            const newW = Math.max(MIN, Math.round((resizeStartData.value.origW - dx) / 20) * 20);
+                            resizingSeat.value.positionX = resizeStartData.value.origX + (resizeStartData.value.origW - newW);
+                            resizingSeat.value.width = newW;
+                        } else if (d === 's') {
+                            resizingSeat.value.height = Math.max(MIN, Math.round((resizeStartData.value.origH + dy) / 20) * 20);
+                        } else if (d === 'n') {
+                            const newH = Math.max(MIN, Math.round((resizeStartData.value.origH - dy) / 20) * 20);
+                            resizingSeat.value.positionY = resizeStartData.value.origY + (resizeStartData.value.origH - newH);
+                            resizingSeat.value.height = newH;
+                        }
+                        return;
+                    }
                     if (draggingSeat.value && !isSelectMode.value[roomId]) {
                         e.preventDefault();
                         
@@ -861,6 +931,10 @@
                 
                 // 容器鼠标释放
                 const onContainerMouseUp = (roomId) => {
+                    if (resizingSeat.value) {
+                        resizingSeat.value = null;
+                        resizeStartData.value = null;
+                    }
                     if (isSelecting.value[roomId]) {
                         isSelecting.value[roomId] = false;
                         selectionBox.value[roomId] = null;
@@ -1006,7 +1080,9 @@
                         const seats = roomSeats.value[roomId].map(seat => ({
                             id: seat.id,
                             positionX: seat.positionX,
-                            positionY: seat.positionY
+                            positionY: seat.positionY,
+                            width: seat.width || 80,
+                            height: seat.height || 60
                         }));
                         
                         const res = await axios.put(`/api/roomadmin/room/${roomId}/seats/positions`, seats);
@@ -1073,15 +1149,64 @@
                     }
                 };
                 
+                // 删除单个座位
+                const deleteSingleSeat = async (seatId, roomId) => {
+                    try {
+                        await ElMessageBox.confirm('确定删除该座位？', '提示', { type: 'warning' });
+                        const res = await axios.delete(`/api/roomadmin/seat/${seatId}`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('删除成功');
+                            await fetchSeats(roomId);
+                        } else ElMessage.error(res.data.message || '删除失败');
+                    } catch (e) {}
+                };
+
+                // 过道拉伸相关状态
+                const resizingSeat = ref(null);
+                const resizeDir = ref('');
+                const resizeStartData = ref(null);
+
+                const onResizeStart = (e, seat, roomId, dir) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    resizingSeat.value = seat;
+                    resizeDir.value = dir;
+                    const container = e.target.closest('.seat-layout-container');
+                    containerRect.value = container.getBoundingClientRect();
+                    resizeStartData.value = {
+                        mouseX: e.clientX,
+                        mouseY: e.clientY,
+                        origW: seat.width || 80,
+                        origH: seat.height || 60,
+                        origX: seat.positionX,
+                        origY: seat.positionY
+                    };
+                };
+
+                // 添加普通座位
+                const addSeat = async (roomId) => {
+                    try {
+                        const res = await axios.post(`/api/roomadmin/room/${roomId}/seat`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('添加成功，请拖动到合适位置后保存');
+                            await fetchSeats(roomId);
+                        } else {
+                            ElMessage.error(res.data.message || '添加失败');
+                        }
+                    } catch (e) {
+                        ElMessage.error('添加失败');
+                    }
+                };
+
                 // 批量删除座位
                 const batchDeleteSeats = async (roomId) => {
                     try {
-                        await ElMessageBox.confirm(`确定要删除选中的 ${selectedSeats.value[roomId].length} 个座位吗？`, '提示', {
+                        await ElMessageBox.confirm(`确定删除选中的 ${selectedSeats.value[roomId].length} 个座位吗？`, '提示', {
                             confirmButtonText: '确定',
                             cancelButtonText: '取消',
                             type: 'warning'
                         });
-                        
+
                         for (const seatId of selectedSeats.value[roomId]) {
                             await axios.delete(`/api/roomadmin/seat/${seatId}`);
                         }
@@ -1198,7 +1323,8 @@
                     onMouseDown, onSeatClick, onSeatDblClick,
                     resetPositions, savePositions,
                     specialSeatDialogVisible, specialSeatForm, showAddSpecialSeat, addSpecialSeat,
-                    batchDeleteSeats,
+                    addSeat, batchDeleteSeats, deleteSingleSeat,
+                    resizingSeat, onResizeStart,
                     tagDialogVisible, seatTags, tagForm, showManageTags, addTag, deleteTag,
                     seatTagDialogVisible, currentSeat, currentSeatTags, saveSeatTags, currentRoomId,
                     presetTags, customTagInput, togglePresetTag, addCustomTag, removeCustomTag,

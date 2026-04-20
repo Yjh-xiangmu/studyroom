@@ -11,10 +11,12 @@ import com.studyroom.entity.Seat;
 import com.studyroom.entity.StudyRoom;
 import com.studyroom.entity.SysSetting;
 import com.studyroom.entity.User;
+import com.studyroom.entity.UserMoralRecord;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
 import com.studyroom.service.StudyRoomService;
 import com.studyroom.service.SysSettingService;
+import com.studyroom.service.UserMoralRecordService;
 import com.studyroom.service.UserService;
 import com.studyroom.service.NoticeService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +50,9 @@ public class SysAdminController {
     private SysSettingService sysSettingService;
 
     @Autowired
+    private UserMoralRecordService userMoralRecordService;
+
+    @Autowired
     private ReservationService reservationService;
 
     @Autowired
@@ -57,6 +62,15 @@ public class SysAdminController {
     private NoticeService noticeService;
 
     // ========== 用户管理 ==========
+
+    @GetMapping("/user/admins")
+    public Result<List<User>> getRoomAdmins() {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 2).orderByAsc(User::getUsername);
+        List<User> admins = userService.list(wrapper);
+        admins.forEach(u -> u.setPassword(null));
+        return Result.success(admins);
+    }
 
     @GetMapping("/user/list")
     public Result<Page<User>> getUserList(
@@ -566,6 +580,19 @@ public class SysAdminController {
         return success ? Result.success("删除成功") : Result.error(500, "删除失败");
     }
 
+    // 修改公告（含置顶选项）
+    @PutMapping("/notice/{id}")
+    public Result<String> updateNotice(@PathVariable Long id, @RequestBody Notice notice) {
+        Notice existing = noticeService.getById(id);
+        if (existing == null) return Result.error(404, "公告不存在");
+        if (notice.getTitle() != null) existing.setTitle(notice.getTitle());
+        if (notice.getContent() != null) existing.setContent(notice.getContent());
+        if (notice.getIsTop() != null) existing.setIsTop(notice.getIsTop());
+        existing.setUpdateTime(LocalDateTime.now());
+        boolean success = noticeService.updateById(existing);
+        return success ? Result.success("修改成功") : Result.error(500, "修改失败");
+    }
+
     // ========== 数据统计 ==========
 
     @GetMapping("/statistics/overview")
@@ -946,5 +973,67 @@ public class SysAdminController {
 
     private String nullSafe(String s) {
         return s != null ? s.replace(",", "，") : "";
+    }
+
+    // ============ 德育分管理 ============
+
+    @GetMapping("/moral/list")
+    public Result<List<Map<String, Object>>> getMoralList(HttpSession session) {
+        User admin = (User) session.getAttribute("user");
+        if (admin == null || admin.getUserType() != 3) return Result.error(403, "无权限");
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
+               .orderByDesc(User::getMoralScore);
+        List<User> users = userService.list(wrapper);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        String[] rankNames = {"", "初学者", "进阶者", "学习达人", "自律标兵", "学霸", "学神"};
+        for (User u : users) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", u.getId());
+            row.put("username", u.getUsername());
+            row.put("realName", u.getRealName());
+            row.put("studentId", u.getStudentId());
+            row.put("department", u.getDepartment());
+            int rank = u.getMoralRank() != null ? u.getMoralRank() : 0;
+            row.put("moralRank", rank);
+            row.put("rankName", rank > 0 ? rankNames[rank] : "未入段");
+            row.put("moralScore", u.getMoralScore() != null ? u.getMoralScore() : 0);
+            result.add(row);
+        }
+        return Result.success(result);
+    }
+
+    @GetMapping("/moral/export")
+    public ResponseEntity<byte[]> exportMoralList(HttpSession session) {
+        User admin = (User) session.getAttribute("user");
+        if (admin == null || admin.getUserType() != 3) {
+            return ResponseEntity.status(403).build();
+        }
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
+               .orderByDesc(User::getMoralScore);
+        List<User> users = userService.list(wrapper);
+
+        String[] rankNames = {"", "初学者", "进阶者", "学习达人", "自律标兵", "学霸", "学神"};
+        StringBuilder csv = new StringBuilder("学号,姓名,用户名,院系,段位,德育加分\n");
+        for (User u : users) {
+            int rank = u.getMoralRank() != null ? u.getMoralRank() : 0;
+            csv.append(nullSafe(u.getStudentId())).append(",")
+               .append(nullSafe(u.getRealName())).append(",")
+               .append(nullSafe(u.getUsername())).append(",")
+               .append(nullSafe(u.getDepartment())).append(",")
+               .append(rank > 0 ? rankNames[rank] : "未入段").append(",")
+               .append(u.getMoralScore() != null ? u.getMoralScore() : 0).append("\n");
+        }
+
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        String filename = "德育分名单_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
+        headers.setContentDispositionFormData("attachment", new String(filename.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1));
+        return ResponseEntity.ok().headers(headers).body(bytes);
     }
 }
