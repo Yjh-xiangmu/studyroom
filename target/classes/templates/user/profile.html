@@ -21,7 +21,7 @@
         .main-content { padding-top: 64px; min-height: 100vh; padding-bottom: 40px; }
         .profile-container { max-width: 800px; margin: 24px auto; padding: 0 24px; }
         .profile-card { background: #fff; border-radius: 8px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .profile-header { display: flex; align-items: center; gap: 24px; margin-bottom: 32px; }
+        .profile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
         .profile-avatar { width: 80px; height: 80px; border-radius: 50%; background: #0068DD; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 32px; }
         .profile-info h2 { margin-bottom: 8px; }
         .profile-info p { color: #666; }
@@ -42,297 +42,341 @@
     </style>
 </head>
 <body>
-    <div id="app">
-        <nav class="navbar">
-            <a href="/" class="navbar-brand">自习室管理系统</a>
-            <div class="nav-menu">
-                <a href="/" class="nav-item">首页</a>
-                <a href="/studyroom" class="nav-item">自习室</a>
-                <a href="/reservation" class="nav-item">我的预约</a>
-                <a href="/checkin" class="nav-item">签到打卡</a>
-                <a href="/forum" class="nav-item">社区论坛</a>
-            </div>
-            <div class="nav-user">
-                <el-dropdown v-if="currentUser">
+<div id="app">
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">自习室管理系统</a>
+        <div class="nav-menu">
+            <a href="/" class="nav-item">首页</a>
+            <a href="/studyroom" class="nav-item">自习室</a>
+            <a href="/reservation" class="nav-item">我的预约</a>
+            <a href="/checkin" class="nav-item">签到打卡</a>
+            <a href="/forum" class="nav-item">社区论坛</a>
+        </div>
+        <div class="nav-user">
+            <el-dropdown v-if="currentUser">
                     <span class="el-dropdown-link">
                         <el-avatar :size="32" :icon="UserFilled"></el-avatar>
                         <span style="margin-left: 8px;">{{currentUser.realName || currentUser.username}}</span>
                     </span>
-                    <template #dropdown>
-                        <el-dropdown-menu>
-                            <el-dropdown-item><a href="/profile" style="text-decoration: none; color: inherit;">个人中心</a></el-dropdown-item>
-                            <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
-                        </el-dropdown-menu>
-                    </template>
-                </el-dropdown>
-                <a v-else href="/login" style="color: #333; text-decoration: none;">登录</a>
-            </div>
-        </nav>
+                <template #dropdown>
+                    <el-dropdown-menu>
+                        <el-dropdown-item><a href="/profile" style="text-decoration: none; color: inherit;">个人中心</a></el-dropdown-item>
+                        <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                    </el-dropdown-menu>
+                </template>
+            </el-dropdown>
+            <a v-else href="/login" style="color: #333; text-decoration: none;">登录</a>
+        </div>
+    </nav>
 
-        <div class="main-content">
-            <div class="profile-container">
-                <div class="profile-card">
-                    <div class="profile-header">
+    <div class="main-content">
+        <div class="profile-container">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div style="display: flex; align-items: center; gap: 24px;">
                         <div class="profile-avatar">{{currentUser?.realName?.charAt(0) || currentUser?.username?.charAt(0)}}</div>
                         <div class="profile-info">
                             <h2>{{currentUser?.realName || currentUser?.username}}</h2>
                             <p>{{currentUser?.email || '未设置邮箱'}} | {{currentUser?.phone || '未设置手机'}}</p>
                         </div>
                     </div>
-
-                    <div class="stats-row">
-                        <div class="stats-card">
-                            <div class="stats-value">{{stats.totalReservations}}</div>
-                            <div class="stats-label">累计预约</div>
-                        </div>
-                        <div class="stats-card">
-                            <div class="stats-value">{{stats.totalHours}}</div>
-                            <div class="stats-label">学习时长(小时)</div>
-                        </div>
-                        <div class="stats-card">
-                            <div class="stats-value">{{stats.totalDays}}</div>
-                            <div class="stats-label">学习天数</div>
-                        </div>
-                        <div class="stats-card">
-                            <div class="stats-value">{{stats.streak}}</div>
-                            <div class="stats-label">连续天数</div>
-                        </div>
+                    <div>
+                        <el-button type="primary" plain :icon="Phone" @click="showContactDialog">联系管理员</el-button>
                     </div>
-
-                    <el-divider></el-divider>
-
-                    <!-- 我的记录 - 违约与签到统计 -->
-                    <div class="violation-card">
-                        <div class="violation-header">
-                            <h3 style="color: #1f2f3d;">我的记录</h3>
-                            <el-tag v-if="violationInfo.isBanned" type="danger">⚠️ 您已被禁止预约</el-tag>
-                            <el-tag v-else type="success">预约状态正常</el-tag>
-                        </div>
-                        <el-alert v-if="violationInfo.isBanned"
-                            type="error"
-                            title="您的违约次数已超过限制，目前无法预约座位。如有异议请通过论坛或联系自习室管理员申诉。"
-                            :closable="false" style="margin-bottom: 16px;"></el-alert>
-                        <div class="violation-stats">
-                            <div class="v-stat-card" style="background: #fff7e6; border: 1px solid #ffd591;">
-                                <div style="font-size: 28px; font-weight: 700; color: #d46b08;">{{violationInfo.violationCount}}</div>
-                                <div style="color: #8c5000; font-size: 14px; margin-top: 8px;">累计违约次数</div>
-                                <div style="color: #999; font-size: 12px; margin-top: 4px;">上限 {{violationInfo.maxViolation}} 次</div>
-                            </div>
-                            <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
-                                <div style="font-size: 28px; font-weight: 700; color: #389e0d;">{{violationInfo.continuousCheckinDays}}</div>
-                                <div style="color: #135200; font-size: 14px; margin-top: 8px;">连续签到天数</div>
-                            </div>
-                        </div>
-
-                        <!-- 违约记录列表 -->
-                        <div v-if="violationRecords.length > 0">
-                            <h4 style="margin-bottom: 12px; color: #ff4d4f;">违约记录</h4>
-                            <el-table :data="violationRecords" border size="small">
-                                <el-table-column prop="roomName" label="自习室" width="150" show-overflow-tooltip></el-table-column>
-                                <el-table-column prop="seatNumber" label="座位" width="70"></el-table-column>
-                                <el-table-column prop="reservationDate" label="预约日期" width="110"></el-table-column>
-                                <el-table-column label="时段" width="120">
-                                    <template #default="scope">{{scope.row.startTime}} - {{scope.row.endTime}}</template>
-                                </el-table-column>
-                                <el-table-column label="申诉状态" width="100">
-                                    <template #default="scope">
-                                        <el-tag v-if="scope.row.appealStatus === 0" type="info" size="small">未申诉</el-tag>
-                                        <el-tag v-else-if="scope.row.appealStatus === 1" type="warning" size="small">申诉中</el-tag>
-                                        <el-tag v-else-if="scope.row.appealStatus === 2" type="success" size="small">申诉通过</el-tag>
-                                        <el-tag v-else-if="scope.row.appealStatus === 3" type="danger" size="small">申诉驳回</el-tag>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column prop="createTime" label="记录时间" min-width="140"></el-table-column>
-                            </el-table>
-                        </div>
-                        <el-empty v-else description="暂无违约记录，继续保持！" :image-size="60"></el-empty>
-                    </div>
-
-                    <!-- 德育分 -->
-                    <div class="violation-card" style="margin-bottom: 24px;">
-                        <div class="violation-header">
-                            <h3 style="color: #1f2f3d;">德育加分</h3>
-                            <el-tag type="warning">累积学习时长换取德育分，最高+5分</el-tag>
-                        </div>
-                        <div class="violation-stats">
-                            <div class="v-stat-card" style="background: #fff7e6; border: 1px solid #ffd591;">
-                                <div style="font-size: 28px; font-weight: 700; color: #d46b08;">{{moralInfo.moralScore || 0}}</div>
-                                <div style="color: #8c5000; font-size: 14px; margin-top: 8px;">已获德育加分</div>
-                                <div style="color: #999; font-size: 12px; margin-top: 4px;">上限 5 分</div>
-                            </div>
-                            <div class="v-stat-card" style="background: #f0f5ff; border: 1px solid #adc6ff;">
-                                <div style="font-size: 22px; font-weight: 700; color: #2f54eb;">{{moralInfo.rankName || '未入段'}}</div>
-                                <div style="color: #1d39c4; font-size: 14px; margin-top: 8px;">当前段位</div>
-                                <div style="color: #999; font-size: 12px; margin-top: 4px;">累计 {{moralInfo.totalHours || 0}} 小时</div>
-                            </div>
-                            <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
-                                <div style="font-size: 22px; font-weight: 700; color: #389e0d;">
-                                    {{moralInfo.hoursToNext != null ? moralInfo.hoursToNext + 'h' : '已满级'}}
-                                </div>
-                                <div style="color: #135200; font-size: 14px; margin-top: 8px;">距下一段位</div>
-                                <div style="color: #999; font-size: 12px; margin-top: 4px;">
-                                    {{moralInfo.nextRankHours != null ? '需达 ' + moralInfo.nextRankHours + ' 小时' : '学神段位已达成'}}
-                                </div>
-                            </div>
-                        </div>
-                        <div v-if="moralInfo.records && moralInfo.records.length > 0" style="margin-top: 16px;">
-                            <h4 style="margin-bottom: 12px; color: #d46b08;">获奖记录</h4>
-                            <el-table :data="moralInfo.records" border size="small">
-                                <el-table-column prop="rankName" label="段位" width="100"></el-table-column>
-                                <el-table-column prop="scoreAwarded" label="获得德育分" width="110"></el-table-column>
-                                <el-table-column prop="totalHours" label="达成时累计时长(h)" width="160"></el-table-column>
-                                <el-table-column prop="createTime" label="获奖时间" min-width="140">
-                                    <template #default="scope">{{scope.row.createTime ? scope.row.createTime.replace('T',' ').substring(0,16) : '-'}}</template>
-                                </el-table-column>
-                            </el-table>
-                        </div>
-                        <el-empty v-else description="累计学习时长达到10小时即可获得第一个段位" :image-size="60"></el-empty>
-                    </div>
-
-                    <!-- 学习时长统计图表 -->
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <span class="chart-title">个性化学习时长统计</span>
-                            <div class="chart-tabs">
-                                <button class="chart-tab" :class="{ active: chartType === 'week' }" @click="switchChart('week')">近7天</button>
-                                <button class="chart-tab" :class="{ active: chartType === 'month' }" @click="switchChart('month')">近4周</button>
-                            </div>
-                        </div>
-                        <div id="studyChart" style="height: 280px;"></div>
-                    </div>
-
-                    <el-divider></el-divider>
-
-                    <h3 style="margin-bottom: 24px;">编辑资料</h3>
-                    <el-form :model="form" label-width="100px">
-                        <el-form-item label="用户名">
-                            <el-input v-model="form.username" disabled></el-input>
-                        </el-form-item>
-                        <el-form-item label="真实姓名">
-                            <el-input v-model="form.realName" placeholder="请输入真实姓名"></el-input>
-                        </el-form-item>
-                        <el-form-item label="邮箱">
-                            <el-input v-model="form.email" placeholder="请输入邮箱"></el-input>
-                        </el-form-item>
-                        <el-form-item label="手机号">
-                            <el-input v-model="form.phone" placeholder="请输入手机号"></el-input>
-                        </el-form-item>
-                        <el-form-item>
-                            <el-button type="primary" @click="saveProfile" :loading="saving">保存</el-button>
-                        </el-form-item>
-                    </el-form>
                 </div>
+
+                <div class="stats-row">
+                    <div class="stats-card">
+                        <div class="stats-value">{{stats.totalReservations}}</div>
+                        <div class="stats-label">累计预约</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="stats-value">{{stats.totalHours}}</div>
+                        <div class="stats-label">学习时长(小时)</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="stats-value">{{stats.totalDays}}</div>
+                        <div class="stats-label">学习天数</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="stats-value">{{stats.streak}}</div>
+                        <div class="stats-label">连续天数</div>
+                    </div>
+                </div>
+
+                <el-divider></el-divider>
+
+                <div class="violation-card">
+                    <div class="violation-header">
+                        <h3 style="color: #1f2f3d;">我的记录</h3>
+                        <el-tag v-if="violationInfo.isBanned" type="danger">⚠️ 您已被禁止预约</el-tag>
+                        <el-tag v-else type="success">预约状态正常</el-tag>
+                    </div>
+                    <el-alert v-if="violationInfo.isBanned"
+                              type="error"
+                              title="您的违约次数已超过限制，目前无法预约座位。如有异议请通过论坛或联系自习室管理员申诉。"
+                              :closable="false" style="margin-bottom: 16px;"></el-alert>
+                    <div class="violation-stats">
+                        <div class="v-stat-card" style="background: #fff7e6; border: 1px solid #ffd591;">
+                            <div style="font-size: 28px; font-weight: 700; color: #d46b08;">{{violationInfo.violationCount}}</div>
+                            <div style="color: #8c5000; font-size: 14px; margin-top: 8px;">累计违约次数</div>
+                            <div style="color: #999; font-size: 12px; margin-top: 4px;">上限 {{violationInfo.maxViolation}} 次</div>
+                        </div>
+                        <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
+                            <div style="font-size: 28px; font-weight: 700; color: #389e0d;">{{violationInfo.continuousCheckinDays}}</div>
+                            <div style="color: #135200; font-size: 14px; margin-top: 8px;">连续签到天数</div>
+                        </div>
+                    </div>
+
+                    <div v-if="violationRecords.length > 0">
+                        <h4 style="margin-bottom: 12px; color: #ff4d4f;">违约记录</h4>
+                        <el-table :data="violationRecords" border size="small">
+                            <el-table-column prop="roomName" label="自习室" width="150" show-overflow-tooltip></el-table-column>
+                            <el-table-column prop="seatNumber" label="座位" width="70"></el-table-column>
+                            <el-table-column prop="reservationDate" label="预约日期" width="110"></el-table-column>
+                            <el-table-column label="时段" width="120">
+                                <template #default="scope">{{scope.row.startTime}} - {{scope.row.endTime}}</template>
+                            </el-table-column>
+                            <el-table-column label="申诉状态" width="100">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.appealStatus === 0" type="info" size="small">未申诉</el-tag>
+                                    <el-tag v-else-if="scope.row.appealStatus === 1" type="warning" size="small">申诉中</el-tag>
+                                    <el-tag v-else-if="scope.row.appealStatus === 2" type="success" size="small">申诉通过</el-tag>
+                                    <el-tag v-else-if="scope.row.appealStatus === 3" type="danger" size="small">申诉驳回</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="createTime" label="记录时间" min-width="140"></el-table-column>
+                        </el-table>
+                    </div>
+                    <el-empty v-else description="暂无违约记录，继续保持！" :image-size="60"></el-empty>
+                </div>
+
+                <div class="violation-card" style="margin-bottom: 24px;">
+                    <div class="violation-header">
+                        <h3 style="color: #1f2f3d;">德育加分</h3>
+                        <el-tag type="warning">累积学习时长换取德育分，最高+5分</el-tag>
+                    </div>
+                    <div class="violation-stats">
+                        <div class="v-stat-card" style="background: #fff7e6; border: 1px solid #ffd591;">
+                            <div style="font-size: 28px; font-weight: 700; color: #d46b08;">{{moralInfo.moralScore || 0}}</div>
+                            <div style="color: #8c5000; font-size: 14px; margin-top: 8px;">已获德育加分</div>
+                            <div style="color: #999; font-size: 12px; margin-top: 4px;">上限 5 分</div>
+                        </div>
+                        <div class="v-stat-card" style="background: #f0f5ff; border: 1px solid #adc6ff;">
+                            <div style="font-size: 22px; font-weight: 700; color: #2f54eb;">{{moralInfo.rankName || '未入段'}}</div>
+                            <div style="color: #1d39c4; font-size: 14px; margin-top: 8px;">当前段位</div>
+                            <div style="color: #999; font-size: 12px; margin-top: 4px;">累计 {{moralInfo.totalHours || 0}} 小时</div>
+                        </div>
+                        <div class="v-stat-card" style="background: #f6ffed; border: 1px solid #b7eb8f;">
+                            <div style="font-size: 22px; font-weight: 700; color: #389e0d;">
+                                {{moralInfo.hoursToNext != null ? moralInfo.hoursToNext + 'h' : '已满级'}}
+                            </div>
+                            <div style="color: #135200; font-size: 14px; margin-top: 8px;">距下一段位</div>
+                            <div style="color: #999; font-size: 12px; margin-top: 4px;">
+                                {{moralInfo.nextRankHours != null ? '需达 ' + moralInfo.nextRankHours + ' 小时' : '学神段位已达成'}}
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="moralInfo.records && moralInfo.records.length > 0" style="margin-top: 16px;">
+                        <h4 style="margin-bottom: 12px; color: #d46b08;">获奖记录</h4>
+                        <el-table :data="moralInfo.records" border size="small">
+                            <el-table-column prop="rankName" label="段位" width="100"></el-table-column>
+                            <el-table-column prop="scoreAwarded" label="获得德育分" width="110"></el-table-column>
+                            <el-table-column prop="totalHours" label="达成时累计时长(h)" width="160"></el-table-column>
+                            <el-table-column prop="createTime" label="获奖时间" min-width="140">
+                                <template #default="scope">{{scope.row.createTime ? scope.row.createTime.replace('T',' ').substring(0,16) : '-'}}</template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+                    <el-empty v-else description="累计学习时长达到10小时即可获得第一个段位" :image-size="60"></el-empty>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <span class="chart-title">个性化学习时长统计</span>
+                        <div class="chart-tabs">
+                            <button class="chart-tab" :class="{ active: chartType === 'week' }" @click="switchChart('week')">近7天</button>
+                            <button class="chart-tab" :class="{ active: chartType === 'month' }" @click="switchChart('month')">近4周</button>
+                        </div>
+                    </div>
+                    <div id="studyChart" style="height: 280px;"></div>
+                </div>
+
+                <el-divider></el-divider>
+
+                <h3 style="margin-bottom: 24px;">编辑资料</h3>
+                <el-form :model="form" label-width="100px">
+                    <el-form-item label="用户名">
+                        <el-input v-model="form.username" disabled></el-input>
+                    </el-form-item>
+                    <el-form-item label="真实姓名">
+                        <el-input v-model="form.realName" placeholder="请输入真实姓名"></el-input>
+                    </el-form-item>
+                    <el-form-item label="邮箱">
+                        <el-input v-model="form.email" placeholder="请输入邮箱"></el-input>
+                    </el-form-item>
+                    <el-form-item label="手机号">
+                        <el-input v-model="form.phone" placeholder="请输入手机号"></el-input>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="saveProfile" :loading="saving">保存</el-button>
+                    </el-form-item>
+                </el-form>
             </div>
         </div>
     </div>
 
-    <script>
-        const { createApp, ref, reactive, onMounted, nextTick } = Vue;
-        const { ElMessage } = ElementPlus;
-        const { UserFilled } = ElementPlusIconsVue;
+    <el-dialog v-model="contactDialogVisible" title="联系管理员" width="400px">
+        <div v-if="contactData.sysContact" style="margin-bottom: 20px; padding: 16px; background: #f0f5ff; border-radius: 8px; border: 1px solid #adc6ff;">
+            <h3 style="color: #1d39c4; margin-bottom: 12px; font-size: 16px;">👑 {{ contactData.sysContact.title }}</h3>
+            <p style="margin-bottom: 8px; font-size: 14px;"><strong>姓名：</strong> {{ contactData.sysContact.name }}</p>
+            <p style="font-size: 14px;"><strong>电话：</strong> {{ contactData.sysContact.phone }}</p>
+        </div>
 
-        createApp({
-            setup() {
-                const currentUser = ref(null);
-                const saving = ref(false);
-                const chartType = ref('week');
-                const stats = reactive({ totalReservations: 0, totalHours: 0, totalDays: 0, streak: 0 });
-                const form = reactive({ username: '', realName: '', email: '', phone: '' });
-                const violationInfo = reactive({ violationCount: 0, continuousCheckinDays: 0, isBanned: false, maxViolation: 3, rewardDays: 7 });
-                const violationRecords = ref([]);
-                const moralInfo = reactive({ currentRank: 0, rankName: '未入段', moralScore: 0, totalHours: 0, nextRankHours: null, hoursToNext: null, records: [] });
-                let studyChart = null;
+        <h3 style="font-size: 16px; margin-bottom: 12px; color: #333;" v-if="contactData.roomContacts && contactData.roomContacts.length > 0">📍 自习室管理员</h3>
+        <div style="max-height: 300px; overflow-y: auto; padding-right: 5px;">
+            <div v-for="(item, index) in contactData.roomContacts" :key="index"
+                 style="margin-bottom: 12px; padding: 12px; background: #f6ffed; border-radius: 8px; border: 1px solid #b7eb8f;">
+                <p style="margin-bottom: 8px; font-weight: bold; color: #389e0d;">{{ item.title }}</p>
+                <p style="margin-bottom: 4px; font-size: 14px;">姓名：{{ item.name }}</p>
+                <p style="font-size: 14px;">电话：{{ item.phone }}</p>
+            </div>
+        </div>
+        <el-empty v-if="!contactData.roomContacts || contactData.roomContacts.length === 0" description="暂无分配自习室管理员" :image-size="60"></el-empty>
 
-                const fetchUser = async () => {
-                    try {
-                        const res = await axios.get('/api/user/info');
-                        if (res.data.code === 200) {
-                            currentUser.value = res.data.data;
-                            Object.assign(form, res.data.data);
+        <template #footer>
+            <el-button @click="contactDialogVisible = false">关闭</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script>
+    const { createApp, ref, reactive, onMounted, nextTick } = Vue;
+    const { ElMessage } = ElementPlus;
+    const { UserFilled, Phone } = ElementPlusIconsVue;
+
+    createApp({
+        setup() {
+            const currentUser = ref(null);
+            const saving = ref(false);
+            const chartType = ref('week');
+            const stats = reactive({ totalReservations: 0, totalHours: 0, totalDays: 0, streak: 0 });
+            const form = reactive({ username: '', realName: '', email: '', phone: '' });
+            const violationInfo = reactive({ violationCount: 0, continuousCheckinDays: 0, isBanned: false, maxViolation: 3, rewardDays: 7 });
+            const violationRecords = ref([]);
+            const moralInfo = reactive({ currentRank: 0, rankName: '未入段', moralScore: 0, totalHours: 0, nextRankHours: null, hoursToNext: null, records: [] });
+            let studyChart = null;
+
+            const contactDialogVisible = ref(false);
+            const contactData = reactive({ sysContact: null, roomContacts: [] });
+
+            const showContactDialog = async () => {
+                contactDialogVisible.value = true;
+                try {
+                    const res = await axios.get('/api/user/admin-contacts');
+                    if (res.data.code === 200) {
+                        contactData.sysContact = res.data.data.sysContact;
+                        contactData.roomContacts = res.data.data.roomContacts;
+                    }
+                } catch (e) {
+                    ElMessage.error('获取联系方式失败');
+                }
+            };
+
+            const fetchUser = async () => {
+                try {
+                    const res = await axios.get('/api/user/info');
+                    if (res.data.code === 200) {
+                        currentUser.value = res.data.data;
+                        Object.assign(form, res.data.data);
+                    }
+                } catch (e) {}
+            };
+
+            const fetchStats = async () => {
+                try {
+                    const res = await axios.get('/api/user/stats');
+                    if (res.data.code === 200) Object.assign(stats, res.data.data);
+                } catch (e) {}
+            };
+
+            const fetchViolationInfo = async () => {
+                try {
+                    const res = await axios.get('/api/user/violation-info');
+                    if (res.data.code === 200) {
+                        Object.assign(violationInfo, res.data.data);
+                        violationRecords.value = res.data.data.records || [];
+                    }
+                } catch (e) {}
+            };
+
+            const fetchMoralInfo = async () => {
+                try {
+                    const res = await axios.get('/api/user/moral-info');
+                    if (res.data.code === 200) Object.assign(moralInfo, res.data.data);
+                } catch (e) {}
+            };
+
+            const fetchChart = async (type) => {
+                try {
+                    const res = await axios.get('/api/user/chart?type=' + type);
+                    if (res.data.code === 200) {
+                        const { labels, data } = res.data.data;
+                        if (!studyChart) {
+                            const dom = document.getElementById('studyChart');
+                            if (!dom) return;
+                            studyChart = echarts.init(dom);
                         }
-                    } catch (e) {}
-                };
+                        studyChart.setOption({
+                            tooltip: { trigger: 'axis', formatter: '{b}<br/>学习时长：{c} 小时' },
+                            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                            xAxis: { type: 'category', data: labels, axisLine: { lineStyle: { color: '#d9d9d9' } } },
+                            yAxis: { type: 'value', name: '小时', axisLine: { lineStyle: { color: '#d9d9d9' } } },
+                            series: [{
+                                type: 'bar',
+                                data: data,
+                                itemStyle: { color: '#0068DD', borderRadius: [4, 4, 0, 0] },
+                                label: { show: true, position: 'top', formatter: '{c}h' }
+                            }]
+                        });
+                    }
+                } catch (e) {}
+            };
 
-                const fetchStats = async () => {
-                    try {
-                        const res = await axios.get('/api/user/stats');
-                        if (res.data.code === 200) Object.assign(stats, res.data.data);
-                    } catch (e) {}
-                };
+            const switchChart = (type) => {
+                chartType.value = type;
+                fetchChart(type);
+            };
 
-                const fetchViolationInfo = async () => {
-                    try {
-                        const res = await axios.get('/api/user/violation-info');
-                        if (res.data.code === 200) {
-                            Object.assign(violationInfo, res.data.data);
-                            violationRecords.value = res.data.data.records || [];
-                        }
-                    } catch (e) {}
-                };
+            const saveProfile = async () => {
+                saving.value = true;
+                try {
+                    const res = await axios.put('/api/user/profile', form);
+                    if (res.data.code === 200) {
+                        ElMessage.success('保存成功');
+                        fetchUser();
+                    } else ElMessage.error(res.data.message || '保存失败');
+                } catch (e) { ElMessage.error('保存失败'); }
+                finally { saving.value = false; }
+            };
 
-                const fetchMoralInfo = async () => {
-                    try {
-                        const res = await axios.get('/api/user/moral-info');
-                        if (res.data.code === 200) Object.assign(moralInfo, res.data.data);
-                    } catch (e) {}
-                };
+            const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
 
-                const fetchChart = async (type) => {
-                    try {
-                        const res = await axios.get('/api/user/chart?type=' + type);
-                        if (res.data.code === 200) {
-                            const { labels, data } = res.data.data;
-                            if (!studyChart) {
-                                const dom = document.getElementById('studyChart');
-                                if (!dom) return;
-                                studyChart = echarts.init(dom);
-                            }
-                            studyChart.setOption({
-                                tooltip: { trigger: 'axis', formatter: '{b}<br/>学习时长：{c} 小时' },
-                                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-                                xAxis: { type: 'category', data: labels, axisLine: { lineStyle: { color: '#d9d9d9' } } },
-                                yAxis: { type: 'value', name: '小时', axisLine: { lineStyle: { color: '#d9d9d9' } } },
-                                series: [{
-                                    type: 'bar',
-                                    data: data,
-                                    itemStyle: { color: '#0068DD', borderRadius: [4, 4, 0, 0] },
-                                    label: { show: true, position: 'top', formatter: '{c}h' }
-                                }]
-                            });
-                        }
-                    } catch (e) {}
-                };
+            onMounted(() => {
+                fetchUser();
+                fetchStats();
+                fetchViolationInfo();
+                fetchMoralInfo();
+                nextTick(() => fetchChart('week'));
+            });
 
-                const switchChart = (type) => {
-                    chartType.value = type;
-                    fetchChart(type);
-                };
-
-                const saveProfile = async () => {
-                    saving.value = true;
-                    try {
-                        const res = await axios.put('/api/user/profile', form);
-                        if (res.data.code === 200) {
-                            ElMessage.success('保存成功');
-                            fetchUser();
-                        } else ElMessage.error(res.data.message || '保存失败');
-                    } catch (e) { ElMessage.error('保存失败'); }
-                    finally { saving.value = false; }
-                };
-
-                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
-
-                onMounted(() => {
-                    fetchUser();
-                    fetchStats();
-                    fetchViolationInfo();
-                    fetchMoralInfo();
-                    nextTick(() => fetchChart('week'));
-                });
-
-                return { currentUser, saving, stats, form, chartType, violationInfo, violationRecords, moralInfo, saveProfile, switchChart, logout, UserFilled };
-            }
-        }).use(ElementPlus).mount('#app');
-    </script>
+            return {
+                currentUser, saving, stats, form, chartType, violationInfo, violationRecords, moralInfo,
+                saveProfile, switchChart, logout, UserFilled, Phone,
+                contactDialogVisible, contactData, showContactDialog
+            };
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
 </body>
 </html>

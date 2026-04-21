@@ -81,22 +81,19 @@ public class UserController {
         if (user == null) {
             return Result.error(401, "未登录");
         }
-        
+
         Map<String, Object> stats = new HashMap<>();
-        
-        // 累计预约次数
+
         LambdaQueryWrapper<Reservation> reservationWrapper = new LambdaQueryWrapper<>();
         reservationWrapper.eq(Reservation::getUserId, user.getId());
         long totalReservations = reservationService.count(reservationWrapper);
         stats.put("totalReservations", totalReservations);
-        
-        // 已签到的预约（签到时间不为空即有效学习时长）
+
         LambdaQueryWrapper<Reservation> checkedWrapper = new LambdaQueryWrapper<>();
         checkedWrapper.eq(Reservation::getUserId, user.getId())
-                      .isNotNull(Reservation::getCheckInTime);
+                .isNotNull(Reservation::getCheckInTime);
         List<Reservation> checkedReservations = reservationService.list(checkedWrapper);
-        
-        // 计算学习时长（小时）：已签到且已签退的累计时间
+
         double totalHours = 0;
         Set<LocalDate> studyDays = new HashSet<>();
         for (Reservation r : checkedReservations) {
@@ -106,15 +103,13 @@ public class UserController {
                     Duration d = Duration.between(r.getCheckInTime(), r.getCheckOutTime());
                     totalHours += d.toMinutes() / 60.0;
                 } else {
-                    // 未签退按2小时计算
                     totalHours += 2.0;
                 }
             }
         }
         stats.put("totalHours", Math.round(totalHours * 10) / 10.0);
         stats.put("totalDays", studyDays.size());
-        
-        // 连续天数（从今天往前连续）
+
         int streak = 0;
         LocalDate day = LocalDate.now();
         while (studyDays.contains(day)) {
@@ -122,28 +117,27 @@ public class UserController {
             day = day.minusDays(1);
         }
         stats.put("streak", streak);
-        
+
         return Result.success(stats);
     }
 
     @GetMapping("/chart")
     public Result<Map<String, Object>> getUserChart(HttpSession session,
-            @RequestParam(defaultValue = "week") String type) {
+                                                    @RequestParam(defaultValue = "week") String type) {
         User user = (User) session.getAttribute("user");
         if (user == null) {
             return Result.error(401, "未登录");
         }
-        
+
         Map<String, Object> result = new HashMap<>();
         List<String> labels = new ArrayList<>();
         List<Double> data = new ArrayList<>();
-        
+
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Reservation::getUserId, user.getId())
-               .isNotNull(Reservation::getCheckInTime);
+                .isNotNull(Reservation::getCheckInTime);
         List<Reservation> list = reservationService.list(wrapper);
-        
-        // 按日期分组统计学习时长
+
         Map<LocalDate, Double> dailyHours = new HashMap<>();
         for (Reservation r : list) {
             if (r.getCheckInTime() != null) {
@@ -155,7 +149,7 @@ public class UserController {
                 dailyHours.merge(d, hours, Double::sum);
             }
         }
-        
+
         if ("week".equals(type)) {
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/dd");
             LocalDate today = LocalDate.now();
@@ -165,7 +159,6 @@ public class UserController {
                 data.add(Math.round(dailyHours.getOrDefault(d, 0.0) * 10) / 10.0);
             }
         } else {
-            // 近30天按周汇总
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/dd");
             LocalDate today = LocalDate.now();
             for (int w = 3; w >= 0; w--) {
@@ -179,7 +172,7 @@ public class UserController {
                 data.add(Math.round(sum * 10) / 10.0);
             }
         }
-        
+
         result.put("labels", labels);
         result.put("data", data);
         return Result.success(result);
@@ -209,7 +202,6 @@ public class UserController {
         int violationCount = currentUser.getViolationCount() != null ? currentUser.getViolationCount() : 0;
         boolean isBanned = violationCount >= maxViolation;
 
-        // 连续签到天数
         LambdaQueryWrapper<Reservation> checkinWrapper = new LambdaQueryWrapper<>();
         checkinWrapper.eq(Reservation::getUserId, currentUser.getId()).isNotNull(Reservation::getCheckInTime);
         List<Reservation> checkins = reservationService.list(checkinWrapper);
@@ -224,7 +216,6 @@ public class UserController {
             day = day.minusDays(1);
         }
 
-        // 违约记录列表（仅系统自动违约，排除用户主动取消）
         LambdaQueryWrapper<Reservation> violationWrapper = new LambdaQueryWrapper<>();
         violationWrapper.eq(Reservation::getUserId, currentUser.getId())
                 .eq(Reservation::getStatus, 3)
@@ -267,7 +258,6 @@ public class UserController {
         int currentRank = user.getMoralRank() != null ? user.getMoralRank() : 0;
         double moralScore = user.getMoralScore() != null ? user.getMoralScore().doubleValue() : 0.0;
 
-        // 读取下一段位阈值
         double nextHours = -1;
         if (currentRank < 6) {
             SysSetting nextSetting = sysSettingService.getOne(
@@ -278,7 +268,6 @@ public class UserController {
             }
         }
 
-        // 累计学习时长
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Reservation::getUserId, user.getId()).isNotNull(Reservation::getCheckInTime);
         List<Reservation> list = reservationService.list(wrapper);
@@ -294,7 +283,6 @@ public class UserController {
         }
         totalHours = Math.round(totalHours * 10) / 10.0;
 
-        // 获取德育分记录
         LambdaQueryWrapper<UserMoralRecord> recordWrapper = new LambdaQueryWrapper<>();
         recordWrapper.eq(UserMoralRecord::getUserId, user.getId()).orderByAsc(UserMoralRecord::getRankLevel);
         List<UserMoralRecord> records = userMoralRecordService.list(recordWrapper);
@@ -310,5 +298,43 @@ public class UserController {
         data.put("hoursToNext", nextHours > 0 ? Math.max(0, Math.round((nextHours - totalHours) * 10) / 10.0) : null);
         data.put("records", records);
         return Result.success(data);
+    }
+
+    @GetMapping("/admin-contacts")
+    public Result<Map<String, Object>> getAdminContacts() {
+        Map<String, Object> result = new HashMap<>();
+
+        // 查询所有分配了 adminId 的自习室
+        List<Map<String, Object>> roomContacts = new ArrayList<>();
+        List<StudyRoom> rooms = studyRoomService.list(
+                new LambdaQueryWrapper<StudyRoom>()
+                        .isNotNull(StudyRoom::getAdminId)
+                        .eq(StudyRoom::getDeleted, 0)
+        );
+
+        for (StudyRoom room : rooms) {
+            User admin = userService.getById(room.getAdminId());
+            if (admin != null) {
+                Map<String, Object> contact = new HashMap<>();
+                contact.put("title", room.getName() + " (" + room.getBuilding() + ") 管理员");
+                contact.put("name", admin.getRealName() != null ? admin.getRealName() : admin.getUsername());
+                contact.put("phone", admin.getPhone() != null ? admin.getPhone() : "未留手机号");
+                // 彻底去掉返回邮箱信息的代码
+                roomContacts.add(contact);
+            }
+        }
+        result.put("roomContacts", roomContacts);
+
+        // 系统总管理员信息（基于ID=1账户）
+        User sysAdmin = userService.getById(1L);
+        Map<String, Object> sysContact = new HashMap<>();
+        if (sysAdmin != null) {
+            sysContact.put("title", "系统总管理员");
+            sysContact.put("name", sysAdmin.getRealName() != null ? sysAdmin.getRealName() : sysAdmin.getUsername());
+            sysContact.put("phone", sysAdmin.getPhone() != null ? sysAdmin.getPhone() : "未留手机号");
+        }
+        result.put("sysContact", sysContact);
+
+        return Result.success(result);
     }
 }

@@ -56,5 +56,32 @@ public class AuthController {
         }
         return Result.error(401, "未登录");
     }
+// 在 AuthController 类中补充以下接口
 
+    @PostMapping("/verify-identity")
+    public Result<Boolean> verifyIdentity(@RequestBody Map<String, String> params) {
+        String username = params.get("username");
+        String email = params.get("email");
+        String phone = params.get("phone");
+
+        boolean isValid = userService.verifyIdentity(username, email, phone);
+        if (isValid) {
+            return Result.success("验证成功", true);
+        } else {
+            return Result.error(400, "验证信息不匹配，请检查用户名、邮箱和手机号");
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public Result<String> resetPassword(@RequestBody Map<String, String> params) {
+        String username = params.get("username");
+        String newPassword = params.get("newPassword");
+
+        try {
+            userService.resetPassword(username, newPassword);
+            return Result.success("密码重置成功，请重新登录");
+        } catch (Exception e) {
+            return Result.error(500, e.getMessage());
+        }
+    }
 }

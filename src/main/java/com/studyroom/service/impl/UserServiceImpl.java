@@ -128,5 +128,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public List<String> getUserRoles(Long userId) {
         return baseMapper.selectRolesByUserId(userId);
     }
+// 在 UserServiceImpl 类中补充以下代码
 
+    @Override
+    public boolean verifyIdentity(String username, String email, String phone) {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getUsername, username)
+                .eq(User::getEmail, email)
+                .eq(User::getPhone, phone);
+        return count(wrapper) > 0;
+    }
+
+    @Override
+    public void resetPassword(String username, String newPassword) {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getUsername, username);
+        User user = getOne(wrapper);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        // 对新密码进行加密保存
+        user.setPassword(passwordEncoder.encode(newPassword));
+        updateById(user);
+    }
 }

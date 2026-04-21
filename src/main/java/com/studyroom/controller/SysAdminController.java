@@ -12,6 +12,8 @@ import com.studyroom.entity.StudyRoom;
 import com.studyroom.entity.SysSetting;
 import com.studyroom.entity.User;
 import com.studyroom.entity.UserMoralRecord;
+import com.studyroom.entity.UserRole;
+import com.studyroom.mapper.UserRoleMapper;
 import com.studyroom.service.ReservationService;
 import com.studyroom.service.SeatService;
 import com.studyroom.service.StudyRoomService;
@@ -23,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
@@ -61,6 +64,16 @@ public class SysAdminController {
     @Autowired
     private NoticeService noticeService;
 
+    @Autowired
+    private ForumPostService forumPostService;
+
+    // 注入 UserRoleMapper 用于同步更新权限
+    @Autowired
+    private UserRoleMapper userRoleMapper;
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+
     // ========== 用户管理 ==========
 
     @GetMapping("/user/admins")
@@ -79,10 +92,10 @@ public class SysAdminController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String realName,
             @RequestParam(required = false) Integer userType) {
-        
+
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getDeleted, 0);
-        
+
         if (username != null && !username.isEmpty()) {
             wrapper.like(User::getUsername, username);
         }
@@ -92,13 +105,13 @@ public class SysAdminController {
         if (userType != null) {
             wrapper.eq(User::getUserType, userType);
         }
-        
+
         wrapper.orderByDesc(User::getCreateTime);
         Page<User> pageResult = userService.page(new Page<>(page, size), wrapper);
-        
+
         // 清除密码
         pageResult.getRecords().forEach(user -> user.setPassword(null));
-        
+
         return Result.success(pageResult);
     }
 
@@ -110,18 +123,26 @@ public class SysAdminController {
         if (userService.getOne(wrapper) != null) {
             return Result.error(400, "用户名已存在");
         }
-        
-        // 设置默认密码
+
+        // 设置默认密码并加密
         if (user.getPassword() == null || user.getPassword().isEmpty()) {
-            user.setPassword("admin");
+            user.setPassword(passwordEncoder.encode("admin"));
+        } else {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
-        
+
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         user.setDeleted(0);
-        
+
         boolean success = userService.save(user);
         if (success) {
+            // 同步写入权限表映射
+            UserRole userRole = new UserRole();
+            userRole.setUserId(user.getId());
+            userRole.setRoleId(user.getUserType() != null ? user.getUserType().longValue() : 1L);
+            userRoleMapper.insert(userRole);
+
             user.setPassword(null);
             return Result.success("新增成功", user);
         }
@@ -134,9 +155,21 @@ public class SysAdminController {
         user.setUpdateTime(LocalDateTime.now());
         // 不更新密码
         user.setPassword(null);
-        
+
         boolean success = userService.updateById(user);
         if (success) {
+            // 如果修改了用户类型，同步更新权限表
+            if (user.getUserType() != null) {
+                LambdaQueryWrapper<UserRole> roleWrapper = new LambdaQueryWrapper<>();
+                roleWrapper.eq(UserRole::getUserId, id);
+                userRoleMapper.delete(roleWrapper); // 删除旧权限
+
+                UserRole userRole = new UserRole();
+                userRole.setUserId(id);
+                userRole.setRoleId(user.getUserType().longValue());
+                userRoleMapper.insert(userRole); // 写入新权限
+            }
+
             return Result.success("更新成功", user);
         }
         return Result.error(500, "更新失败");
@@ -158,7 +191,7 @@ public class SysAdminController {
         user.setId(id);
         user.setStatus(params.get("status"));
         user.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = userService.updateById(user);
         if (success) {
             return Result.success("状态更新成功");
@@ -175,10 +208,10 @@ public class SysAdminController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String building,
             @RequestParam(required = false) Integer status) {
-        
+
         LambdaQueryWrapper<StudyRoom> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(StudyRoom::getDeleted, 0);
-        
+
         if (name != null && !name.isEmpty()) {
             wrapper.like(StudyRoom::getName, name);
         }
@@ -188,7 +221,7 @@ public class SysAdminController {
         if (status != null) {
             wrapper.eq(StudyRoom::getStatus, status);
         }
-        
+
         wrapper.orderByDesc(StudyRoom::getCreateTime);
         Page<StudyRoom> pageResult = studyRoomService.page(new Page<>(page, size), wrapper);
         return Result.success(pageResult);
@@ -199,7 +232,7 @@ public class SysAdminController {
         studyRoom.setCreateTime(LocalDateTime.now());
         studyRoom.setUpdateTime(LocalDateTime.now());
         studyRoom.setDeleted(0);
-        
+
         boolean success = studyRoomService.save(studyRoom);
         if (success) {
             return Result.success("新增成功", studyRoom);
@@ -211,7 +244,7 @@ public class SysAdminController {
     public Result<StudyRoom> updateStudyRoom(@PathVariable Long id, @RequestBody StudyRoom studyRoom) {
         studyRoom.setId(id);
         studyRoom.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = studyRoomService.updateById(studyRoom);
         if (success) {
             return Result.success("更新成功", studyRoom);
@@ -234,42 +267,42 @@ public class SysAdminController {
     @GetMapping("/dashboard/stats")
     public Result<Map<String, Object>> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
-        
+
         // 总用户数
         LambdaQueryWrapper<User> userWrapper = new LambdaQueryWrapper<>();
         userWrapper.eq(User::getDeleted, 0);
         stats.put("userCount", userService.count(userWrapper));
-        
+
         // 本周新增注册用户数
         LocalDate weekAgo = LocalDate.now().minusDays(7);
         LambdaQueryWrapper<User> weekUserWrapper = new LambdaQueryWrapper<>();
         weekUserWrapper.eq(User::getDeleted, 0)
-                       .ge(User::getCreateTime, weekAgo.atStartOfDay());
+                .ge(User::getCreateTime, weekAgo.atStartOfDay());
         stats.put("weekNewUserCount", userService.count(weekUserWrapper));
-        
+
         // 待处理预约数（待签到的预约）
         LambdaQueryWrapper<Reservation> pendingWrapper = new LambdaQueryWrapper<>();
         pendingWrapper.eq(Reservation::getStatus, 0)
-                      .ge(Reservation::getReservationDate, LocalDate.now());
+                .ge(Reservation::getReservationDate, LocalDate.now());
         stats.put("pendingReservationCount", reservationService.count(pendingWrapper));
-        
+
         // 本周签到率
         LocalDate weekStart = LocalDate.now().minusDays(7);
         LambdaQueryWrapper<Reservation> weekReservationWrapper = new LambdaQueryWrapper<>();
         weekReservationWrapper.ge(Reservation::getReservationDate, weekStart)
-                              .le(Reservation::getReservationDate, LocalDate.now())
-                              .in(Reservation::getStatus, 1, 2, 3); // 已签到、已完成、已取消（已结束的预约）
+                .le(Reservation::getReservationDate, LocalDate.now())
+                .in(Reservation::getStatus, 1, 2, 3); // 已签到、已完成、已取消（已结束的预约）
         long weekTotal = reservationService.count(weekReservationWrapper);
-        
+
         LambdaQueryWrapper<Reservation> weekCheckInWrapper = new LambdaQueryWrapper<>();
         weekCheckInWrapper.ge(Reservation::getReservationDate, weekStart)
-                          .le(Reservation::getReservationDate, LocalDate.now())
-                          .in(Reservation::getStatus, 1, 2); // 已签到或已完成
+                .le(Reservation::getReservationDate, LocalDate.now())
+                .in(Reservation::getStatus, 1, 2); // 已签到或已完成
         long weekCheckIn = reservationService.count(weekCheckInWrapper);
-        
+
         int checkInRate = weekTotal > 0 ? (int) (weekCheckIn * 100 / weekTotal) : 0;
         stats.put("weekCheckInRate", checkInRate);
-        
+
         return Result.success(stats);
     }
 
@@ -289,14 +322,14 @@ public class SysAdminController {
         // 查询今日预约
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Reservation::getReservationDate, LocalDate.now())
-               .orderByDesc(Reservation::getCreateTime)
-               .last("LIMIT 10");
-        
+                .orderByDesc(Reservation::getCreateTime)
+                .last("LIMIT 10");
+
         List<Reservation> reservations = reservationService.list(wrapper);
         if (reservations.isEmpty()) {
             return Result.success(new ArrayList<>());
         }
-        
+
         // 获取相关用户信息
         List<Long> userIds = reservations.stream()
                 .map(Reservation::getUserId).distinct().collect(Collectors.toList());
@@ -306,7 +339,7 @@ public class SysAdminController {
             userWrapper.in(User::getId, userIds);
             userService.list(userWrapper).forEach(u -> userMap.put(u.getId(), u));
         }
-        
+
         // 获取自习室信息
         List<Long> roomIds = reservations.stream()
                 .map(Reservation::getRoomId).distinct().collect(Collectors.toList());
@@ -316,28 +349,28 @@ public class SysAdminController {
             roomWrapper.in(StudyRoom::getId, roomIds);
             studyRoomService.list(roomWrapper).forEach(r -> roomMap.put(r.getId(), r));
         }
-        
+
         // 组装结果
         List<Map<String, Object>> result = new ArrayList<>();
         for (Reservation r : reservations) {
             Map<String, Object> map = new HashMap<>();
             map.put("id", r.getId());
-            
+
             User user = userMap.get(r.getUserId());
             map.put("userName", user != null ? user.getUsername() : "未知用户");
-            
+
             StudyRoom room = roomMap.get(r.getRoomId());
             map.put("roomName", room != null ? room.getName() : "未知自习室");
-            
+
             map.put("reservationDate", r.getReservationDate());
             map.put("startTime", r.getStartTime());
             map.put("endTime", r.getEndTime());
             map.put("status", r.getStatus());
             map.put("createTime", r.getCreateTime());
-            
+
             result.add(map);
         }
-        
+
         return Result.success(result);
     }
 
@@ -351,21 +384,21 @@ public class SysAdminController {
             @RequestParam(required = false) String roomName,
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) String date) {
-        
+
         // 查询预约列表
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
-        
+
         if (status != null) {
             wrapper.eq(Reservation::getStatus, status);
         }
         if (date != null && !date.isEmpty()) {
             wrapper.eq(Reservation::getReservationDate, LocalDate.parse(date));
         }
-        
+
         wrapper.orderByDesc(Reservation::getCreateTime);
         Page<Reservation> pageParam = new Page<>(page, size);
         Page<Reservation> reservationPage = reservationService.page(pageParam, wrapper);
-        
+
         // 获取所有相关用户ID、自习室ID、座位ID
         List<Long> userIds = reservationPage.getRecords().stream()
                 .map(Reservation::getUserId).distinct().collect(Collectors.toList());
@@ -373,7 +406,7 @@ public class SysAdminController {
                 .map(Reservation::getRoomId).distinct().collect(Collectors.toList());
         List<Long> seatIds = reservationPage.getRecords().stream()
                 .map(Reservation::getSeatId).distinct().collect(Collectors.toList());
-        
+
         // 批量查询用户信息
         Map<Long, User> userMap = new HashMap<>();
         if (!userIds.isEmpty()) {
@@ -381,7 +414,7 @@ public class SysAdminController {
             userWrapper.in(User::getId, userIds);
             userService.list(userWrapper).forEach(u -> userMap.put(u.getId(), u));
         }
-        
+
         // 批量查询自习室信息
         Map<Long, StudyRoom> roomMap = new HashMap<>();
         if (!roomIds.isEmpty()) {
@@ -389,7 +422,7 @@ public class SysAdminController {
             roomWrapper.in(StudyRoom::getId, roomIds);
             studyRoomService.list(roomWrapper).forEach(r -> roomMap.put(r.getId(), r));
         }
-        
+
         // 批量查询座位信息
         Map<Long, Seat> seatMap = new HashMap<>();
         if (!seatIds.isEmpty()) {
@@ -397,26 +430,26 @@ public class SysAdminController {
             seatWrapper.in(Seat::getId, seatIds);
             seatService.list(seatWrapper).forEach(s -> seatMap.put(s.getId(), s));
         }
-        
+
         // 组装结果
         List<Map<String, Object>> records = new ArrayList<>();
         for (Reservation r : reservationPage.getRecords()) {
             Map<String, Object> map = new HashMap<>();
             map.put("id", r.getId());
             map.put("reservationNo", "RES" + String.format("%08d", r.getId()));
-            
+
             User user = userMap.get(r.getUserId());
             map.put("userId", r.getUserId());
             map.put("userName", user != null ? user.getUsername() : "未知用户");
-            
+
             StudyRoom room = roomMap.get(r.getRoomId());
             map.put("roomId", r.getRoomId());
             map.put("roomName", room != null ? room.getName() : "未知自习室");
-            
+
             Seat seat = seatMap.get(r.getSeatId());
             map.put("seatId", r.getSeatId());
             map.put("seatNumber", seat != null ? seat.getSeatNumber() : "未知座位");
-            
+
             map.put("reservationDate", r.getReservationDate());
             map.put("startTime", r.getStartTime());
             map.put("endTime", r.getEndTime());
@@ -426,7 +459,7 @@ public class SysAdminController {
             map.put("cancelTime", r.getCancelTime());
             map.put("cancelReason", r.getCancelReason());
             map.put("createTime", r.getCreateTime());
-            
+
             // 过滤条件
             if (userName != null && !userName.isEmpty()) {
                 if (user == null || !user.getUsername().contains(userName)) continue;
@@ -434,14 +467,14 @@ public class SysAdminController {
             if (roomName != null && !roomName.isEmpty()) {
                 if (room == null || !room.getName().contains(roomName)) continue;
             }
-            
+
             records.add(map);
         }
-        
+
         // 创建新的分页结果
         Page<Map<String, Object>> resultPage = new Page<>(page, size, records.size());
         resultPage.setRecords(records);
-        
+
         return Result.success(resultPage);
     }
 
@@ -451,16 +484,16 @@ public class SysAdminController {
         if (reservation == null) {
             return Result.error(404, "预约不存在");
         }
-        
+
         if (reservation.getStatus() != 0) {
             return Result.error(400, "只能取消待签到的预约");
         }
-        
+
         reservation.setStatus(3); // 已取消
         reservation.setCancelTime(LocalDateTime.now());
         reservation.setCancelReason("管理员取消");
         reservation.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = reservationService.updateById(reservation);
         if (success) {
             return Result.success("取消成功");
@@ -476,7 +509,7 @@ public class SysAdminController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) Integer status) {
-        
+
         LambdaQueryWrapper<Notice> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Notice::getDeleted, 0);
         wrapper.eq(Notice::getPublisherType, 1); // 只显示系统管理员发布的公告
@@ -487,11 +520,11 @@ public class SysAdminController {
         if (status != null) {
             wrapper.eq(Notice::getStatus, status);
         }
-        
+
         // 置顶的先显示，然后按创建时间倒序
         wrapper.orderByDesc(Notice::getIsTop);
         wrapper.orderByDesc(Notice::getCreateTime);
-        
+
         Page<Notice> pageResult = noticeService.page(new Page<>(page, size), wrapper);
         return Result.success(pageResult);
     }
@@ -522,7 +555,7 @@ public class SysAdminController {
         notice.setId(id);
         notice.setStatus(1); // 一级审核通过
         notice.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = noticeService.updateById(notice);
         if (success) {
             return Result.success("一级审核通过");
@@ -538,7 +571,7 @@ public class SysAdminController {
         notice.setStatus(2); // 已发布
         notice.setPublishTime(LocalDateTime.now());
         notice.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = noticeService.updateById(notice);
         if (success) {
             return Result.success("发布成功");
@@ -553,7 +586,7 @@ public class SysAdminController {
         notice.setId(id);
         notice.setStatus(3); // 已关闭
         notice.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = noticeService.updateById(notice);
         if (success) {
             return Result.success("关闭成功");
@@ -568,7 +601,7 @@ public class SysAdminController {
         notice.setId(id);
         notice.setStatus(4); // 已屏蔽
         notice.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = noticeService.updateById(notice);
         return success ? Result.success("屏蔽成功") : Result.error(500, "屏蔽失败");
     }
@@ -598,39 +631,37 @@ public class SysAdminController {
     @GetMapping("/statistics/overview")
     public Result<Map<String, Object>> getStatisticsOverview() {
         Map<String, Object> stats = new HashMap<>();
-        
+
         // 总用户数
         LambdaQueryWrapper<User> userWrapper = new LambdaQueryWrapper<>();
         userWrapper.eq(User::getDeleted, 0);
         stats.put("userCount", userService.count(userWrapper));
-        
+
         // 总自习室数
         LambdaQueryWrapper<StudyRoom> roomWrapper = new LambdaQueryWrapper<>();
         roomWrapper.eq(StudyRoom::getDeleted, 0);
         stats.put("roomCount", studyRoomService.count(roomWrapper));
-        
+
         // 本月预约数
         LocalDate firstDayOfMonth = LocalDate.now().withDayOfMonth(1);
         LambdaQueryWrapper<Reservation> monthWrapper = new LambdaQueryWrapper<>();
         monthWrapper.ge(Reservation::getReservationDate, firstDayOfMonth);
         stats.put("monthReservationCount", reservationService.count(monthWrapper));
-        
+
         // 座位使用率（简化计算：今日预约数 / 总座位数 * 100）
         LambdaQueryWrapper<Reservation> todayWrapper = new LambdaQueryWrapper<>();
         todayWrapper.eq(Reservation::getReservationDate, LocalDate.now());
         long todayReservationCount = reservationService.count(todayWrapper);
-        
+
         // 获取总座位数
         long totalSeats = seatService.count();
         int usageRate = totalSeats > 0 ? (int) (todayReservationCount * 100 / totalSeats) : 0;
         stats.put("seatUsageRate", Math.min(usageRate, 100));
-        
+
         return Result.success(stats);
     }
 
     // ========== 论坛管理（上诉申请审核） ==========
-    @Autowired
-    private ForumPostService forumPostService;
 
     @GetMapping("/forum/posts")
     public Result<Page<Map<String, Object>>> getForumPosts(
@@ -701,7 +732,7 @@ public class SysAdminController {
         if (user == null) {
             return Result.error(401, "未登录");
         }
-        
+
         ForumPost post = new ForumPost();
         post.setUserId(user.getId());
         post.setTitle((String) params.get("title"));
@@ -714,7 +745,7 @@ public class SysAdminController {
         post.setIsTop(0);
         post.setCreateTime(LocalDateTime.now());
         post.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = forumPostService.save(post);
         if (success) {
             return Result.success("发布成功");
@@ -950,17 +981,17 @@ public class SysAdminController {
     public ResponseEntity<byte[]> exportContinuousUsers(@RequestParam(defaultValue = "7") Integer minDays) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
-               .ge(User::getContinuousCheckinDays, minDays)
-               .orderByDesc(User::getContinuousCheckinDays);
+                .ge(User::getContinuousCheckinDays, minDays)
+                .orderByDesc(User::getContinuousCheckinDays);
         List<User> users = userService.list(wrapper);
 
         StringBuilder csv = new StringBuilder("学号,姓名,用户名,院系,连续签到天数\n");
         for (User u : users) {
             csv.append(nullSafe(u.getStudentId())).append(",")
-               .append(nullSafe(u.getRealName())).append(",")
-               .append(nullSafe(u.getUsername())).append(",")
-               .append(nullSafe(u.getDepartment())).append(",")
-               .append(u.getContinuousCheckinDays() != null ? u.getContinuousCheckinDays() : 0).append("\n");
+                    .append(nullSafe(u.getRealName())).append(",")
+                    .append(nullSafe(u.getUsername())).append(",")
+                    .append(nullSafe(u.getDepartment())).append(",")
+                    .append(u.getContinuousCheckinDays() != null ? u.getContinuousCheckinDays() : 0).append("\n");
         }
 
         byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
@@ -984,7 +1015,7 @@ public class SysAdminController {
 
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
-               .orderByDesc(User::getMoralScore);
+                .orderByDesc(User::getMoralScore);
         List<User> users = userService.list(wrapper);
 
         List<Map<String, Object>> result = new ArrayList<>();
@@ -1014,7 +1045,7 @@ public class SysAdminController {
 
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
-               .orderByDesc(User::getMoralScore);
+                .orderByDesc(User::getMoralScore);
         List<User> users = userService.list(wrapper);
 
         String[] rankNames = {"", "初学者", "进阶者", "学习达人", "自律标兵", "学霸", "学神"};
@@ -1022,11 +1053,11 @@ public class SysAdminController {
         for (User u : users) {
             int rank = u.getMoralRank() != null ? u.getMoralRank() : 0;
             csv.append(nullSafe(u.getStudentId())).append(",")
-               .append(nullSafe(u.getRealName())).append(",")
-               .append(nullSafe(u.getUsername())).append(",")
-               .append(nullSafe(u.getDepartment())).append(",")
-               .append(rank > 0 ? rankNames[rank] : "未入段").append(",")
-               .append(u.getMoralScore() != null ? u.getMoralScore() : 0).append("\n");
+                    .append(nullSafe(u.getRealName())).append(",")
+                    .append(nullSafe(u.getUsername())).append(",")
+                    .append(nullSafe(u.getDepartment())).append(",")
+                    .append(rank > 0 ? rankNames[rank] : "未入段").append(",")
+                    .append(u.getMoralScore() != null ? u.getMoralScore() : 0).append("\n");
         }
 
         byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
