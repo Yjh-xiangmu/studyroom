@@ -89,7 +89,7 @@
                 </div>
                 <div v-else>
                     <div class="room-card" v-for="room in roomList" :key="room.id">
-                        <img :src="getRoomImage(room.id)" class="room-image" alt="自习室">
+                        <img :src="room.imageUrl || getRoomImage(room.id)" class="room-image" alt="自习室">
                         <div class="room-info">
                             <div class="room-title">{{room.name}}</div>
                             <div class="room-meta">

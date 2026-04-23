@@ -222,6 +222,24 @@
                         <el-button type="primary" @click="saveProfile" :loading="saving">保存</el-button>
                     </el-form-item>
                 </el-form>
+
+                <el-divider></el-divider>
+
+                <h3 style="margin-bottom: 24px;">修改密码</h3>
+                <el-form :model="pwdForm" label-width="100px">
+                    <el-form-item label="原密码">
+                        <el-input v-model="pwdForm.oldPassword" type="password" placeholder="请输入原密码" show-password style="max-width: 360px;"></el-input>
+                    </el-form-item>
+                    <el-form-item label="新密码">
+                        <el-input v-model="pwdForm.newPassword" type="password" placeholder="请输入新密码（至少6位）" show-password style="max-width: 360px;"></el-input>
+                    </el-form-item>
+                    <el-form-item label="确认新密码">
+                        <el-input v-model="pwdForm.confirmPassword" type="password" placeholder="请再次输入新密码" show-password style="max-width: 360px;"></el-input>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="warning" @click="changePassword" :loading="changingPwd">修改密码</el-button>
+                    </el-form-item>
+                </el-form>
             </div>
         </div>
     </div>
@@ -259,9 +277,11 @@
         setup() {
             const currentUser = ref(null);
             const saving = ref(false);
+            const changingPwd = ref(false);
             const chartType = ref('week');
             const stats = reactive({ totalReservations: 0, totalHours: 0, totalDays: 0, streak: 0 });
             const form = reactive({ username: '', realName: '', email: '', phone: '' });
+            const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' });
             const violationInfo = reactive({ violationCount: 0, continuousCheckinDays: 0, isBanned: false, maxViolation: 3, rewardDays: 7 });
             const violationRecords = ref([]);
             const moralInfo = reactive({ currentRank: 0, rankName: '未入段', moralScore: 0, totalHours: 0, nextRankHours: null, hoursToNext: null, records: [] });
@@ -360,6 +380,33 @@
                 finally { saving.value = false; }
             };
 
+            const changePassword = async () => {
+                if (!pwdForm.oldPassword || !pwdForm.newPassword || !pwdForm.confirmPassword) {
+                    ElMessage.warning('请填写完整密码信息');
+                    return;
+                }
+                if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+                    ElMessage.warning('两次输入的新密码不一致');
+                    return;
+                }
+                if (pwdForm.newPassword.length < 6) {
+                    ElMessage.warning('新密码至少需要6位');
+                    return;
+                }
+                changingPwd.value = true;
+                try {
+                    const res = await axios.post('/api/user/change-password', {
+                        oldPassword: pwdForm.oldPassword,
+                        newPassword: pwdForm.newPassword
+                    });
+                    if (res.data.code === 200) {
+                        ElMessage.success('密码修改成功，请重新登录');
+                        setTimeout(() => { window.location.href = '/login'; }, 1500);
+                    } else ElMessage.error(res.data.message || '修改失败');
+                } catch (e) { ElMessage.error('修改失败'); }
+                finally { changingPwd.value = false; }
+            };
+
             const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
 
             onMounted(() => {
@@ -371,8 +418,8 @@
             });
 
             return {
-                currentUser, saving, stats, form, chartType, violationInfo, violationRecords, moralInfo,
-                saveProfile, switchChart, logout, UserFilled, Phone,
+                currentUser, saving, changingPwd, stats, form, pwdForm, chartType, violationInfo, violationRecords, moralInfo,
+                saveProfile, changePassword, switchChart, logout, UserFilled, Phone,
                 contactDialogVisible, contactData, showContactDialog
             };
         }

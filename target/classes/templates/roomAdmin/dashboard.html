@@ -27,109 +27,118 @@
     </style>
 </head>
 <body>
-    <div id="app">
-        <div class="admin-container">
-            <header class="admin-header">
-                <div class="logo">自习室管理后台</div>
-                <div class="user-info">
-                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
-                    <el-button type="danger" size="small" @click="logout">退出</el-button>
-                </div>
-            </header>
-            <div class="admin-layout">
-                <aside class="admin-sidebar">
-                    <ul class="sidebar-menu">
-                        <li class="active" @click="goTo('/admin/dashboard')">控制台</li>
-                        <li @click="goTo('/admin/studyroom')">自习室管理</li>
-                        <li @click="goTo('/admin/reservation')">预约管理</li>
-                        <li @click="goTo('/admin/checkin')">出勤管理</li>
-                        <li @click="goTo('/admin/forum')">论坛管理</li>
-                        <li @click="goTo('/admin/profile')">个人中心</li>
-                    </ul>
-                </aside>
-                <main class="admin-main">
-                    <h1 class="page-title">控制台</h1>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-title">管理的自习室</div>
-                            <div class="stat-value">{{stats.roomCount}}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-title">今日预约</div>
-                            <div class="stat-value">{{stats.todayReservation}}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-title">当前签到</div>
-                            <div class="stat-value">{{stats.currentCheckIn}}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-title">待处理反馈</div>
-                            <div class="stat-value">{{stats.pendingFeedback}}</div>
-                        </div>
-                    </div>
-                    <div class="content-card">
-                        <h3 style="margin-bottom: 16px;">今日预约情况</h3>
-                        <el-table :data="todayReservations" v-loading="loading">
-                            <el-table-column prop="userName" label="用户" width="120"></el-table-column>
-                            <el-table-column prop="roomName" label="自习室" width="150"></el-table-column>
-                            <el-table-column prop="seatNumber" label="座位" width="80"></el-table-column>
-                            <el-table-column prop="startTime" label="开始时间" width="100"></el-table-column>
-                            <el-table-column prop="endTime" label="结束时间" width="100"></el-table-column>
-                            <el-table-column prop="status" label="状态" width="100">
-                                <template #default="scope">
-                                    <el-tag v-if="scope.row.status === 0" type="info">待签到</el-tag>
-                                    <el-tag v-else-if="scope.row.status === 1" type="success">已签到</el-tag>
-                                    <el-tag v-else type="primary">已完成</el-tag>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                    </div>
-                </main>
+<div id="app">
+    <div class="admin-container">
+        <header class="admin-header">
+            <div class="logo">自习室管理后台</div>
+            <div class="user-info">
+                <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                <el-button type="danger" size="small" @click="logout">退出</el-button>
             </div>
+        </header>
+        <div class="admin-layout">
+            <aside class="admin-sidebar">
+                <ul class="sidebar-menu">
+                    <li class="active" @click="goTo('/admin/dashboard')">控制台</li>
+                    <li @click="goTo('/admin/studyroom')">自习室管理</li>
+                    <li @click="goTo('/admin/reservation')">预约管理</li>
+                    <li @click="goTo('/admin/checkin')">出勤管理</li>
+                    <li @click="goTo('/admin/forum')">论坛管理</li>
+                    <li @click="goTo('/admin/profile')">个人中心</li>
+                </ul>
+            </aside>
+            <main class="admin-main">
+                <h1 class="page-title">控制台</h1>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-title">管理的自习室</div>
+                        <div class="stat-value">{{stats.roomCount}}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">今日有效预约</div>
+                        <div class="stat-value">{{stats.todayReservation}}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">今日签到数</div>
+                        <div class="stat-value">{{stats.currentCheckIn}}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">待处理反馈</div>
+                        <div class="stat-value">{{stats.pendingFeedback}}</div>
+                    </div>
+                </div>
+                <div class="content-card">
+                    <h3 style="margin-bottom: 16px;">今日预约情况</h3>
+                    <el-table :data="todayReservations" v-loading="loading">
+                        <el-table-column prop="userName" label="用户" width="120"></el-table-column>
+                        <el-table-column prop="roomName" label="自习室" width="150"></el-table-column>
+                        <el-table-column prop="seatNumber" label="座位" width="80"></el-table-column>
+                        <el-table-column prop="startTime" label="开始时间" width="100"></el-table-column>
+                        <el-table-column prop="endTime" label="结束时间" width="100"></el-table-column>
+                        <el-table-column prop="status" label="状态" width="100">
+                            <template #default="scope">
+                                <el-tag v-if="scope.row.status === 0" type="info">待签到</el-tag>
+                                <el-tag v-else-if="scope.row.status === 1" type="success">使用中</el-tag>
+                                <el-tag v-else-if="scope.row.status === 2" type="primary">已完成</el-tag>
+                                <el-tag v-else-if="scope.row.status === 3" type="danger">已违约</el-tag>
+                                <el-tag v-else-if="scope.row.status === 4" type="warning">已取消</el-tag>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+            </main>
         </div>
     </div>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <script>
-        const { createApp, ref, reactive, onMounted } = Vue;
-        const { ElMessage } = ElementPlus;
-        createApp({
-            setup() {
-                const loading = ref(false);
-                const stats = reactive({ roomCount: 0, todayReservation: 0, currentCheckIn: 0, pendingFeedback: 0 });
-                const todayReservations = ref([]);
+</div>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+    const { createApp, ref, reactive, onMounted } = Vue;
+    const { ElMessage } = ElementPlus;
+    createApp({
+        setup() {
+            const loading = ref(false);
+            const stats = reactive({ roomCount: 0, todayReservation: 0, currentCheckIn: 0, pendingFeedback: 0 });
+            const todayReservations = ref([]);
 
-                const fetchStats = async () => {
-                    try {
-                        const res = await axios.get('/api/roomadmin/dashboard');
-                        if (res.data.code === 200) {
-                            const data = res.data.data;
-                            stats.roomCount = data.managedRooms || 0;
-                            stats.todayReservation = data.todayReservations || 0;
-                            stats.currentCheckIn = data.todayCheckIns || 0;
-                            stats.pendingFeedback = data.pendingPosts || 0;
-                        }
-                    } catch (e) {}
-                };
+            const fetchStats = async () => {
+                try {
+                    const res = await axios.get('/api/roomadmin/dashboard');
+                    if (res.data.code === 200) {
+                        const data = res.data.data;
+                        stats.roomCount = data.managedRooms || 0;
+                        stats.todayReservation = data.todayReservations || 0;
+                        stats.currentCheckIn = data.todayCheckIns || 0;
+                        stats.pendingFeedback = data.pendingPosts || 0;
+                    }
+                } catch (e) {}
+            };
 
-                const fetchTodayReservations = async () => {
-                    loading.value = true;
-                    try {
-                        const res = await axios.get('/api/roomadmin/reservations?date=' + new Date().toISOString().split('T')[0]);
-                        if (res.data.code === 200) todayReservations.value = res.data.data.records || [];
-                    } catch (e) {}
-                    finally { loading.value = false; }
-                };
+            const fetchTodayReservations = async () => {
+                loading.value = true;
+                try {
+                    // 强制获取本地时区的年月日，避免 toISOString() 的时区导致获取到前一天的数据
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    const localDateStr = `${year}-${month}-${day}`;
 
-                const goTo = (path) => { window.location.href = path; };
-                const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
+                    const res = await axios.get('/api/roomadmin/reservations?date=' + localDateStr);
+                    if (res.data.code === 200) todayReservations.value = res.data.data.records || [];
+                } catch (e) {}
+                finally { loading.value = false; }
+            };
 
-                onMounted(() => { fetchStats(); fetchTodayReservations(); });
+            const goTo = (path) => { window.location.href = path; };
+            const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
 
-                return { loading, stats, todayReservations, goTo, logout };
-            }
-        }).use(ElementPlus).mount('#app');
-    </script>
+            onMounted(() => { fetchStats(); fetchTodayReservations(); });
+
+            return { loading, stats, todayReservations, goTo, logout };
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
 </body>
 </html>

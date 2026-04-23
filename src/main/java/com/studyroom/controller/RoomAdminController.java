@@ -43,6 +43,9 @@ public class RoomAdminController {
     @Autowired
     private NoticeService noticeService;
 
+    @Autowired
+    private SysSettingService sysSettingService;
+
     // ========== 控制台数据 ==========
     @GetMapping("/dashboard")
     public Result<Map<String, Object>> getDashboardData(HttpSession session) {
@@ -53,28 +56,45 @@ public class RoomAdminController {
 
         Map<String, Object> data = new HashMap<>();
 
-        // 获取管理的自习室
+        // 1. 获取管理的自习室
         LambdaQueryWrapper<StudyRoom> roomWrapper = new LambdaQueryWrapper<>();
         roomWrapper.eq(StudyRoom::getAdminId, user.getId());
         roomWrapper.eq(StudyRoom::getDeleted, 0);
         List<StudyRoom> rooms = studyRoomService.list(roomWrapper);
         data.put("managedRooms", rooms.size());
 
-        // 今日预约数
+        // 如果名下没有自习室，直接返回0
+        if (rooms.isEmpty()) {
+            data.put("todayReservations", 0);
+            data.put("todayCheckIns", 0);
+            data.put("totalSeats", 0);
+            data.put("pendingPosts", forumPostService.count(new LambdaQueryWrapper<ForumPost>().eq(ForumPost::getStatus, 1)));
+            data.put("totalReservations", 0);
+            data.put("processedPosts", forumPostService.count(new LambdaQueryWrapper<ForumPost>().in(ForumPost::getStatus, java.util.Arrays.asList(2, 3))));
+            return Result.success(data);
+        }
+
+        List<Long> roomIds = rooms.stream().map(StudyRoom::getId).collect(Collectors.toList());
+
+        // 核心修复：强制获取东八区的当前日期，防止服务器在凌晨因为UTC时区查出昨天的数据
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
+
+        // 2. 今日有效预约数 (0待签到, 1使用中, 2已完成)
         LambdaQueryWrapper<Reservation> todayResWrapper = new LambdaQueryWrapper<>();
-        todayResWrapper.in(Reservation::getRoomId, rooms.stream().map(StudyRoom::getId).collect(Collectors.toList()));
-        todayResWrapper.eq(Reservation::getReservationDate, LocalDate.now());
-        todayResWrapper.ne(Reservation::getStatus, 3);
+        todayResWrapper.in(Reservation::getRoomId, roomIds);
+        todayResWrapper.eq(Reservation::getReservationDate, today);
+        // 使用 Arrays.asList 避免 MyBatis-Plus 的可变参数解析bug
+        todayResWrapper.in(Reservation::getStatus, java.util.Arrays.asList(0, 1, 2));
         data.put("todayReservations", reservationService.count(todayResWrapper));
 
-        // 今日签到数
+        // 3. 今日签到数 (1使用中, 2已完成)
         LambdaQueryWrapper<Reservation> checkinWrapper = new LambdaQueryWrapper<>();
-        checkinWrapper.in(Reservation::getRoomId, rooms.stream().map(StudyRoom::getId).collect(Collectors.toList()));
-        checkinWrapper.eq(Reservation::getReservationDate, LocalDate.now());
-        checkinWrapper.eq(Reservation::getStatus, 1);
+        checkinWrapper.in(Reservation::getRoomId, roomIds);
+        checkinWrapper.eq(Reservation::getReservationDate, today);
+        checkinWrapper.in(Reservation::getStatus, java.util.Arrays.asList(1, 2));
         data.put("todayCheckIns", reservationService.count(checkinWrapper));
 
-        // 总座位数
+        // 4. 总座位数
         int totalSeats = 0;
         for (StudyRoom room : rooms) {
             LambdaQueryWrapper<Seat> seatWrapper = new LambdaQueryWrapper<>();
@@ -83,24 +103,19 @@ public class RoomAdminController {
         }
         data.put("totalSeats", totalSeats);
 
-        // 待处理帖子
+        // 5. 待处理帖子
         LambdaQueryWrapper<ForumPost> postWrapper = new LambdaQueryWrapper<>();
         postWrapper.eq(ForumPost::getStatus, 1);
         data.put("pendingPosts", forumPostService.count(postWrapper));
 
-        // 累计预约处理总数
+        // 6. 累计预约处理总数
         LambdaQueryWrapper<Reservation> totalResWrapper = new LambdaQueryWrapper<>();
-        if (!rooms.isEmpty()) {
-            totalResWrapper.in(Reservation::getRoomId, rooms.stream().map(StudyRoom::getId).collect(Collectors.toList()));
-        }
+        totalResWrapper.in(Reservation::getRoomId, roomIds);
         data.put("totalReservations", reservationService.count(totalResWrapper));
 
-        // 已处理帖子（状态为2=已处理/3=已关闭）
+        // 7. 已处理帖子（状态为2=已处理/3=已关闭）
         LambdaQueryWrapper<ForumPost> processedWrapper = new LambdaQueryWrapper<>();
-        List<Integer> processedStatus = new ArrayList<>();
-        processedStatus.add(2);
-        processedStatus.add(3);
-        processedWrapper.in(ForumPost::getStatus, processedStatus);
+        processedWrapper.in(ForumPost::getStatus, java.util.Arrays.asList(2, 3));
         data.put("processedPosts", forumPostService.count(processedWrapper));
 
         return Result.success(data);
@@ -383,6 +398,27 @@ public class RoomAdminController {
         return Result.success("添加成功", data);
     }
 
+    // 重命名座位
+    @PutMapping("/seat/{id}/rename")
+    public Result<String> renameSeat(@PathVariable Long id, @RequestBody Map<String, String> params, HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null || user.getUserType() != 2) return Result.error(403, "无权限");
+
+        Seat seat = seatService.getById(id);
+        if (seat == null) return Result.error(404, "座位不存在");
+
+        StudyRoom room = studyRoomService.getById(seat.getRoomId());
+        if (room == null || !room.getAdminId().equals(user.getId())) return Result.error(403, "无权限");
+
+        String newName = params.get("seatNumber");
+        if (newName == null || newName.trim().isEmpty()) return Result.error(400, "名称不能为空");
+
+        seat.setSeatNumber(newName.trim());
+        seat.setUpdateTime(LocalDateTime.now());
+        seatService.updateById(seat);
+        return Result.success("重命名成功");
+    }
+
     // 删除座位
     @DeleteMapping("/seat/{id}")
     public Result<String> deleteSeat(@PathVariable Long id, HttpSession session) {
@@ -526,6 +562,10 @@ public class RoomAdminController {
         StudyRoom room = studyRoomService.getById(existing.getRoomId());
         if (room == null || !room.getAdminId().equals(user.getId())) {
             return Result.error(403, "无权限");
+        }
+
+        if (existing.getStatus() == 2) {
+            return Result.error(400, "已完成的预约不可修改状态");
         }
 
         Integer newStatus = reservation.getStatus();
@@ -699,6 +739,17 @@ public class RoomAdminController {
         if (reservation == null) return Result.error(404, "记录不存在");
         if (reservation.getStatus() != 3) return Result.error(400, "只能对违约记录提交申诉");
         if (reservation.getAppealStatus() != null && reservation.getAppealStatus() == 1) return Result.error(400, "该记录已有待处理申诉");
+
+        // 只允许对被封禁用户（违约次数达到上限）的违约记录提交申诉
+        LambdaQueryWrapper<SysSetting> sq = new LambdaQueryWrapper<>();
+        sq.eq(SysSetting::getSettingKey, "max_violation_limit");
+        SysSetting setting = sysSettingService.getOne(sq);
+        int maxLimit = setting != null ? Integer.parseInt(setting.getSettingValue()) : 3;
+        User targetUser = userService.getById(reservation.getUserId());
+        int targetViolations = (targetUser != null && targetUser.getViolationCount() != null) ? targetUser.getViolationCount() : 0;
+        if (targetViolations < maxLimit) {
+            return Result.error(400, "该用户违约次数未达上限，请直接修改预约状态处理单次违约");
+        }
 
         reservation.setAppealStatus(1);
         reservation.setAppealReason(params.get("reason"));

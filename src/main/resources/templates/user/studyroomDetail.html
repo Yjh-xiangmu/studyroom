@@ -142,7 +142,7 @@
         <div class="main-content">
             <div class="room-header">
                 <div class="room-header-content">
-                    <img :src="getRoomImage(room.id)" class="room-image" alt="自习室">
+                    <img :src="room.imageUrl || getRoomImage(room.id)" class="room-image" alt="自习室">
                     <div class="room-info">
                         <div class="room-title">{{room.name}}</div>
                         <div class="room-meta">
@@ -203,7 +203,7 @@
                                 :class="getSeatClass(seat)"
                                 :style="getSeatStyle(seat)"
                                 @click="selectSeat(seat)">
-                                <span v-if="seat.seatType === 2" style="font-size: 12px;">过道</span>
+                                <span v-if="seat.seatType === 2" style="font-size: 12px;">{{seat.seatNumber || '过道'}}</span>
                                 <template v-else-if="seat.seatType !== 3">
                                     <span class="seat-number">{{seat.seatNumber}}</span>
                                     <span v-if="seat.tags" class="seat-tags">{{getTagIcons(seat.tags)}}</span>

@@ -127,7 +127,7 @@
                         
                         <el-form :model="form" label-width="100px" style="margin-top: 24px;">
                             <el-form-item label="预约日期">
-                                <el-date-picker v-model="form.date" type="date" placeholder="选择日期" :disabled-date="disabledDate" @change="onDateChange" style="width: 100%;"></el-date-picker>
+                                <el-date-picker v-model="form.date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" :disabled-date="disabledDate" @change="onDateChange" style="width: 100%;"></el-date-picker>
                             </el-form-item>
                             <el-form-item label="开始时间">
                                 <el-time-picker v-model="form.startTime" format="HH:mm" value-format="HH:mm" placeholder="选择时间" :disabled-hours="disabledStartHours" style="width: 100%;" @change="onTimeChange"></el-time-picker>
@@ -218,6 +218,15 @@
                     } catch (e) {}
                 };
 
+                // 本地日期格式化（避免 toISOString 时区问题）
+                const toLocalDateString = (d) => {
+                    const date = d instanceof Date ? d : new Date(d);
+                    const y = date.getFullYear();
+                    const m = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                };
+
                 const disabledDate = (time) => {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -233,11 +242,11 @@
                     if (!form.date || !seat.value.id) return;
                     await fetchOccupiedList();
                 };
-                
+
                 // 获取已预约列表
                 const fetchOccupiedList = async () => {
                     try {
-                        const dateStr = form.date.toISOString ? form.date.toISOString().split('T')[0] : form.date;
+                        const dateStr = typeof form.date === 'string' ? form.date : toLocalDateString(form.date);
                         const res = await axios.get(`/api/reservation/seat/${seat.value.id}/occupied-list?date=${dateStr}`);
                         if (res.data.code === 200) {
                             occupiedList.value = res.data.data.map(item => ({
@@ -277,11 +286,13 @@
                     return segments;
                 });
 
-                // 禁用开放时间外的小时（08-22）
+                // 禁用开放时间外的小时（根据自习室设置）
                 const disabledStartHours = () => {
                     const hours = [];
-                    for (let h = 0; h < 8; h++) hours.push(h);
-                    for (let h = 22; h < 24; h++) hours.push(h);
+                    const openHour = room.value.openTime ? parseInt(room.value.openTime.split(':')[0]) : 8;
+                    const closeHour = room.value.closeTime ? parseInt(room.value.closeTime.split(':')[0]) : 22;
+                    for (let h = 0; h < openHour; h++) hours.push(h);
+                    for (let h = closeHour; h < 24; h++) hours.push(h);
                     return hours;
                 };
 
@@ -343,7 +354,7 @@
                         const params = {
                             roomId: room.value.id,
                             seatId: seat.value.id,
-                            reservationDate: form.date.toISOString ? form.date.toISOString().split('T')[0] : form.date,
+                            reservationDate: typeof form.date === 'string' ? form.date : toLocalDateString(form.date),
                             startTime: form.startTime,
                             endTime: form.endTime
                         };
@@ -369,7 +380,9 @@
 
                 onMounted(() => {
                     fetchUser();
-                    form.date = new Date().toISOString().split('T')[0];
+                    // 用本地日期避免时区问题
+                    const today = new Date();
+                    form.date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
                     onDateChange();
                 });
 

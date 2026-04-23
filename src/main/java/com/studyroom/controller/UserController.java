@@ -16,6 +16,7 @@ import com.studyroom.service.SysSettingService;
 import com.studyroom.service.UserMoralRecordService;
 import com.studyroom.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
@@ -48,6 +49,29 @@ public class UserController {
 
     @Autowired
     private UserMoralRecordService userMoralRecordService;
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    @PostMapping("/change-password")
+    public Result<String> changePassword(@RequestBody Map<String, String> params, HttpSession session) {
+        User currentUser = (User) session.getAttribute("user");
+        if (currentUser == null) {
+            return Result.error(401, "未登录");
+        }
+        String oldPassword = params.get("oldPassword");
+        String newPassword = params.get("newPassword");
+        if (oldPassword == null || newPassword == null || newPassword.length() < 6) {
+            return Result.error(400, "参数错误，新密码至少6位");
+        }
+        User user = userService.getById(currentUser.getId());
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            return Result.error(400, "原密码不正确");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setUpdateTime(LocalDateTime.now());
+        userService.updateById(user);
+        return Result.success("密码修改成功，请重新登录");
+    }
 
     @GetMapping("/info")
     public Result<User> getUserInfo(HttpSession session) {

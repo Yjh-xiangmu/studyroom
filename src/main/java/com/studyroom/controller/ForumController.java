@@ -84,7 +84,8 @@ public class ForumController {
             // 获取作者信息
             User user = userService.getById(post.getUserId());
             map.put("authorName", user != null ? user.getRealName() : "未知用户");
-            
+            map.put("authorType", user != null ? user.getUserType() : 1);
+
             records.add(map);
         }
         
@@ -124,6 +125,7 @@ public class ForumController {
         // 获取作者信息
         User user = userService.getById(post.getUserId());
         postMap.put("authorName", user != null ? user.getRealName() : "未知用户");
+        postMap.put("authorType", user != null ? user.getUserType() : 1);
         
         Map<String, Object> result = new HashMap<>();
         result.put("post", postMap);
@@ -154,14 +156,19 @@ public class ForumController {
     }
 
     @PostMapping("/post")
-    public Result<String> createPost(@RequestBody ForumPost post, HttpSession session) {
+    public Result<String> createPost(@RequestBody Map<String, Object> params, HttpSession session) {
         User user = (User) session.getAttribute("user");
         if (user == null) {
             return Result.error(401, "未登录");
         }
-        
+
+        ForumPost post = new ForumPost();
         post.setUserId(user.getId());
-        // post.setAuthorName(user.getUsername()); // 实体类无此字段
+        // 将前端 category 字符串映射到 postType 整数
+        String category = (String) params.get("category");
+        post.setPostType(categoryToPostType(category));
+        post.setTitle((String) params.get("title"));
+        post.setContent((String) params.get("content"));
         post.setViewCount(0);
         post.setReplyCount(0);
         post.setLikeCount(0);
@@ -169,12 +176,24 @@ public class ForumController {
         post.setIsTop(0);
         post.setCreateTime(LocalDateTime.now());
         post.setUpdateTime(LocalDateTime.now());
-        
+
         boolean success = forumPostService.save(post);
         if (success) {
             return Result.success("发布成功");
         }
         return Result.error(500, "发布失败");
+    }
+
+    // 将 category 字符串转换为 postType 整数
+    private int categoryToPostType(String category) {
+        if (category == null) return 4;
+        switch (category) {
+            case "feedback": return 1;
+            case "report": return 2;
+            case "complaint": return 3;
+            case "discussion": return 4;
+            default: return 4;
+        }
     }
 
     @PostMapping("/post/{id}/reply")

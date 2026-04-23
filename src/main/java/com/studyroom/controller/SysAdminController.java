@@ -931,6 +931,10 @@ public class SysAdminController {
                 // 原来是违约，申诉通过后取消违约，减少违约次数
                 int count = user.getViolationCount() != null ? user.getViolationCount() : 0;
                 user.setViolationCount(Math.max(0, count - 1));
+                // 解除账号封禁（恢复正常状态）
+                if (user.getStatus() != null && user.getStatus() != 1) {
+                    user.setStatus(1);
+                }
             } else {
                 // 原来不是违约，申诉通过后改为违约，增加违约次数
                 int count = user.getViolationCount() != null ? user.getViolationCount() : 0;
@@ -978,26 +982,38 @@ public class SysAdminController {
     }
 
     @GetMapping("/attendance/export")
-    public ResponseEntity<byte[]> exportContinuousUsers(@RequestParam(defaultValue = "7") Integer minDays) {
+    public ResponseEntity<byte[]> exportContinuousUsers() {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getDeleted, 0).eq(User::getUserType, 1)
-                .ge(User::getContinuousCheckinDays, minDays)
-                .orderByDesc(User::getContinuousCheckinDays);
+                .orderByDesc(User::getViolationCount);
         List<User> users = userService.list(wrapper);
 
-        StringBuilder csv = new StringBuilder("学号,姓名,用户名,院系,连续签到天数\n");
+        StringBuilder csv = new StringBuilder("学号,姓名,用户名,院系,累计学习时长(小时),累计违约次数\n");
         for (User u : users) {
+            LambdaQueryWrapper<Reservation> rWrapper = new LambdaQueryWrapper<>();
+            rWrapper.eq(Reservation::getUserId, u.getId()).isNotNull(Reservation::getCheckInTime);
+            List<Reservation> reservations = reservationService.list(rWrapper);
+            double totalHours = 0;
+            for (Reservation r : reservations) {
+                if (r.getCheckOutTime() != null) {
+                    totalHours += java.time.Duration.between(r.getCheckInTime(), r.getCheckOutTime()).toMinutes() / 60.0;
+                } else {
+                    totalHours += 2.0;
+                }
+            }
+            totalHours = Math.round(totalHours * 10) / 10.0;
             csv.append(nullSafe(u.getStudentId())).append(",")
                     .append(nullSafe(u.getRealName())).append(",")
                     .append(nullSafe(u.getUsername())).append(",")
                     .append(nullSafe(u.getDepartment())).append(",")
-                    .append(u.getContinuousCheckinDays() != null ? u.getContinuousCheckinDays() : 0).append("\n");
+                    .append(totalHours).append(",")
+                    .append(u.getViolationCount() != null ? u.getViolationCount() : 0).append("\n");
         }
 
         byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        String filename = "连续签到用户_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
+        String filename = "用户学习统计_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
         headers.setContentDispositionFormData("attachment", new String(filename.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1));
         return ResponseEntity.ok().headers(headers).body(bytes);
     }

@@ -23,7 +23,7 @@
         .room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .room-name { font-size: 18px; font-weight: 600; }
         .room-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; color: #666; }
-        
+
         /* 座位布局容器 */
         .seat-layout-container {
             position: relative;
@@ -35,16 +35,16 @@
             margin-top: 16px;
             overflow: hidden;
         }
-        
+
         .seat-layout-container.editing {
             border-color: #1890ff;
             background: #e6f7ff;
         }
-        
+
         .seat-layout-container.selecting {
             cursor: crosshair;
         }
-        
+
         /* 可拖拽座位 */
         .seat-item {
             position: absolute;
@@ -61,7 +61,7 @@
             transition: transform 0.1s, box-shadow 0.2s;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
-        
+
         .seat-item:hover {
             transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
@@ -100,33 +100,33 @@
         .resize-handle-w  { left: -4px;  top: 20%; height: 60%; width: 8px; cursor: w-resize; }
         .resize-handle-s  { bottom: -4px; left: 20%; width: 60%; height: 8px; cursor: s-resize; }
         .resize-handle-n  { top: -4px;    left: 20%; width: 60%; height: 8px; cursor: n-resize; }
-        
+
         .seat-item.dragging {
             opacity: 0.8;
             z-index: 1000;
             cursor: grabbing;
         }
-        
+
         .seat-item.selected {
             box-shadow: 0 0 0 3px #1890ff, 0 4px 12px rgba(0,0,0,0.2);
         }
-        
+
         .seat-available { background: #52c41a; color: white; }
         .seat-occupied { background: #ff4d4f; color: white; }
         .seat-maintenance { background: #d9d9d9; color: #666; }
         .seat-aisle { background: #fffbe6; border: 2px dashed #faad14; color: #faad14; }
         .seat-empty { background: transparent; border: 1px dashed #d9d9d9; }
-        
+
         .seat-number {
             font-weight: bold;
             font-size: 14px;
         }
-        
+
         .seat-status {
             font-size: 10px;
             opacity: 0.9;
         }
-        
+
         .seat-tags {
             font-size: 9px;
             margin-top: 2px;
@@ -135,7 +135,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        
+
         /* 网格背景 */
         .grid-background {
             position: absolute;
@@ -143,13 +143,13 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-image: 
-                linear-gradient(to right, #e0e0e0 1px, transparent 1px),
-                linear-gradient(to bottom, #e0e0e0 1px, transparent 1px);
+            background-image:
+                    linear-gradient(to right, #e0e0e0 1px, transparent 1px),
+                    linear-gradient(to bottom, #e0e0e0 1px, transparent 1px);
             background-size: 20px 20px;
             pointer-events: none;
         }
-        
+
         /* 框选区域 */
         .selection-box {
             position: absolute;
@@ -158,7 +158,7 @@
             pointer-events: none;
             z-index: 999;
         }
-        
+
         /* 操作按钮区域 */
         .seat-actions {
             display: flex;
@@ -169,7 +169,7 @@
             border-radius: 8px;
             flex-wrap: wrap;
         }
-        
+
         .edit-mode-tip {
             color: #1890ff;
             font-size: 14px;
@@ -178,7 +178,7 @@
             align-items: center;
             gap: 8px;
         }
-        
+
         /* 图例 */
         .seat-legend {
             display: flex;
@@ -189,7 +189,7 @@
             border-radius: 8px;
             flex-wrap: wrap;
         }
-        
+
         .legend-item {
             display: flex;
             align-items: center;
@@ -197,13 +197,13 @@
             font-size: 14px;
             color: #666;
         }
-        
+
         .legend-color {
             width: 20px;
             height: 20px;
             border-radius: 4px;
         }
-        
+
         /* 座位图预览 */
         .seat-map-preview {
             margin-top: 20px;
@@ -211,14 +211,14 @@
             background: #fafafa;
             border-radius: 8px;
         }
-        
+
         .seat-map-title {
             font-size: 16px;
             font-weight: 500;
             margin-bottom: 16px;
             color: #1f2f3d;
         }
-        
+
         .seat-map-container {
             position: relative;
             width: 100%;
@@ -228,7 +228,7 @@
             border-radius: 8px;
             overflow: auto;
         }
-        
+
         .seat-map-item {
             position: absolute;
             width: 60px;
@@ -241,7 +241,7 @@
             font-size: 11px;
             box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
-        
+
         .seat-map-item .seat-tag-icons {
             font-size: 10px;
             margin-top: 2px;
@@ -249,127 +249,124 @@
     </style>
 </head>
 <body>
-    <div id="app">
-        <div class="admin-container">
-            <header class="admin-header">
-                <div class="logo">自习室管理后台</div>
-                <div class="user-info">
-                    <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
-                    <el-button type="danger" size="small" @click="logout">退出</el-button>
-                </div>
-            </header>
-            <div class="admin-layout">
-                <aside class="admin-sidebar">
-                    <ul class="sidebar-menu">
-                        <li @click="goTo('/admin/dashboard')">控制台</li>
-                        <li class="active" @click="goTo('/admin/studyroom')">自习室管理</li>
-                        <li @click="goTo('/admin/reservation')">预约管理</li>
-                        <li @click="goTo('/admin/checkin')">出勤管理</li>
-                        <li @click="goTo('/admin/forum')">论坛管理</li>
-                        <li @click="goTo('/admin/profile')">个人中心</li>
-                    </ul>
-                </aside>
-                <main class="admin-main">
-                    <h1 class="page-title">自习室管理</h1>
-                    <div v-loading="loading">
-                        <div v-for="room in rooms" :key="room.id" class="room-card">
-                            <div class="room-header">
-                                <span class="room-name">{{room.name}}</span>
-                                <el-button type="primary" size="small" @click="editRoom(room)">编辑信息</el-button>
-                            </div>
-                            <div class="room-info">
-                                <span>📍 {{room.building}} {{room.floor}}层</span>
-                                <span>🪑 容量: {{room.capacity}}人</span>
-                                <span>⏰ {{room.openTime}} - {{room.closeTime}}</span>
-                            </div>
-                            <div style="color: #666; margin-bottom: 8px;">{{room.description}}</div>
-                            <div style="color: #1890ff; font-size: 14px; margin-bottom: 8px;">
-                                设施: {{room.hasAirCondition ? '空调 ' : ''}}{{room.hasWifi ? 'WiFi ' : ''}}{{room.hasPower ? '插座' : ''}}
-                            </div>
-                            <el-divider></el-divider>
-                            <div>
-                                <h4 style="margin-bottom: 12px;">座位分布管理</h4>
-                                
-                                <!-- 操作按钮 -->
-                                <div class="seat-actions">
-                                    <el-button 
-                                        :type="isEditMode[room.id] ? 'success' : 'primary'" 
-                                        size="small" 
+<div id="app">
+    <div class="admin-container">
+        <header class="admin-header">
+            <div class="logo">自习室管理后台</div>
+            <div class="user-info">
+                <span th:text="${session.user?.realName ?: session.user?.username}">管理员</span>
+                <el-button type="danger" size="small" @click="logout">退出</el-button>
+            </div>
+        </header>
+        <div class="admin-layout">
+            <aside class="admin-sidebar">
+                <ul class="sidebar-menu">
+                    <li @click="goTo('/admin/dashboard')">控制台</li>
+                    <li class="active" @click="goTo('/admin/studyroom')">自习室管理</li>
+                    <li @click="goTo('/admin/reservation')">预约管理</li>
+                    <li @click="goTo('/admin/checkin')">出勤管理</li>
+                    <li @click="goTo('/admin/forum')">论坛管理</li>
+                    <li @click="goTo('/admin/profile')">个人中心</li>
+                </ul>
+            </aside>
+            <main class="admin-main">
+                <h1 class="page-title">自习室管理</h1>
+                <div v-loading="loading">
+                    <div v-for="room in rooms" :key="room.id" class="room-card">
+                        <div class="room-header">
+                            <span class="room-name">{{room.name}}</span>
+                            <el-button type="primary" size="small" @click="editRoom(room)">编辑信息</el-button>
+                        </div>
+                        <div class="room-info">
+                            <span>📍 {{room.building}} {{room.floor}}层</span>
+                            <span>🪑 容量: {{room.capacity}}人</span>
+                            <span>⏰ {{room.openTime}} - {{room.closeTime}}</span>
+                        </div>
+                        <div style="color: #666; margin-bottom: 8px;">{{room.description}}</div>
+                        <div style="color: #1890ff; font-size: 14px; margin-bottom: 8px;">
+                            设施: {{room.hasAirCondition ? '空调 ' : ''}}{{room.hasWifi ? 'WiFi ' : ''}}{{room.hasPower ? '插座' : ''}}
+                        </div>
+                        <el-divider></el-divider>
+                        <div>
+                            <h4 style="margin-bottom: 12px;">座位分布管理</h4>
+
+                            <div class="seat-actions">
+                                <el-button
+                                        :type="isEditMode[room.id] ? 'success' : 'primary'"
+                                        size="small"
                                         @click="toggleEditMode(room.id)">
-                                        {{isEditMode[room.id] ? '完成编辑' : '调整座位布局'}}
-                                    </el-button>
-                                    <el-button 
-                                        v-if="isEditMode[room.id]" 
-                                        type="warning" 
-                                        size="small" 
+                                    {{isEditMode[room.id] ? '完成编辑' : '调整座位布局'}}
+                                </el-button>
+                                <el-button
+                                        v-if="isEditMode[room.id]"
+                                        type="warning"
+                                        size="small"
                                         @click="resetPositions(room.id)">
-                                        重置位置
-                                    </el-button>
-                                    <el-button 
-                                        v-if="isEditMode[room.id]" 
-                                        type="danger" 
-                                        size="small" 
-                                        @click="savePositions(room.id)" 
+                                    重置位置
+                                </el-button>
+                                <el-button
+                                        v-if="isEditMode[room.id]"
+                                        type="danger"
+                                        size="small"
+                                        @click="savePositions(room.id)"
                                         :loading="saving">
-                                        保存位置
-                                    </el-button>
-                                    <el-button 
-                                        v-if="isEditMode[room.id]" 
-                                        type="info" 
-                                        size="small" 
+                                    保存位置
+                                </el-button>
+                                <el-button
+                                        v-if="isEditMode[room.id]"
+                                        type="info"
+                                        size="small"
                                         @click="toggleSelectMode(room.id)"
                                         :class="{ 'is-active': isSelectMode[room.id] }">
-                                        {{isSelectMode[room.id] ? '退出框选' : '框选移动'}}
-                                    </el-button>
-                                    <el-button
+                                    {{isSelectMode[room.id] ? '退出框选' : '框选移动'}}
+                                </el-button>
+                                <el-button
                                         v-if="isEditMode[room.id]"
                                         type="primary"
                                         size="small"
                                         @click="addSeat(room.id)">
-                                        添加座位
-                                    </el-button>
-                                    <el-button
+                                    添加座位
+                                </el-button>
+                                <el-button
                                         v-if="isEditMode[room.id]"
                                         size="small"
                                         @click="showAddSpecialSeat(room.id)">
-                                        添加过道/空隙
-                                    </el-button>
-                                    <el-button 
-                                        v-if="isEditMode[room.id]" 
-                                        size="small" 
+                                    添加过道/空隙
+                                </el-button>
+                                <el-button
+                                        v-if="isEditMode[room.id]"
+                                        size="small"
                                         @click="showManageTags(room.id)">
-                                        管理标签
-                                    </el-button>
-                                    <el-button 
-                                        v-if="isEditMode[room.id] && selectedSeats[room.id]?.length > 0" 
-                                        type="danger" 
-                                        size="small" 
+                                    管理标签
+                                </el-button>
+                                <el-button
+                                        v-if="isEditMode[room.id] && selectedSeats[room.id]?.length > 0"
+                                        type="danger"
+                                        size="small"
                                         @click="batchDeleteSeats(room.id)">
-                                        删除选中({{selectedSeats[room.id]?.length}})
-                                    </el-button>
-                                    <div v-if="isEditMode[room.id]" class="edit-mode-tip">
-                                        <el-icon><Info-Filled /></el-icon>
-                                        <span v-if="isSelectMode[room.id]">按住鼠标框选座位，选中后可批量移动</span>
-                                        <span v-else>拖拽座位可调整位置，点击座位可切换状态</span>
-                                    </div>
+                                    删除选中({{selectedSeats[room.id]?.length}})
+                                </el-button>
+                                <div v-if="isEditMode[room.id]" class="edit-mode-tip">
+                                    <el-icon><Info-Filled /></el-icon>
+                                    <span v-if="isSelectMode[room.id]">按住鼠标框选座位，选中后可批量移动</span>
+                                    <span v-else>拖拽座位可调整位置，点击座位可切换状态，双击可重命名</span>
                                 </div>
-                                
-                                <!-- 座位布局区域 -->
-                                <div 
-                                    class="seat-layout-container" 
+                            </div>
+
+                            <div
+                                    class="seat-layout-container"
                                     :class="{editing: isEditMode[room.id], selecting: isSelectMode[room.id]}"
                                     @mousedown="onContainerMouseDown($event, room.id)"
                                     @mousemove="onContainerMouseMove($event, room.id)"
                                     @mouseup="onContainerMouseUp(room.id)"
                                     @mouseleave="onContainerMouseUp(room.id)">
-                                    <div class="grid-background"></div>
-                                    
-                                    <!-- 框选区域 -->
-                                    <div v-if="selectionBox[room.id]" class="selection-box" :style="selectionBox[room.id]"></div>
-                                    
-                                    <template v-if="roomSeats[room.id] && roomSeats[room.id].length > 0">
-                                        <div 
-                                            v-for="seat in roomSeats[room.id]" 
+                                <div class="grid-background"></div>
+
+                                <div v-if="selectionBox[room.id]" class="selection-box" :style="selectionBox[room.id]"></div>
+
+                                <template v-if="roomSeats[room.id] && roomSeats[room.id].length > 0">
+                                    <div
+                                            v-for="seat in roomSeats[room.id]"
                                             :key="seat.id"
                                             class="seat-item"
                                             :class="[getSeatClass(seat), {dragging: draggingSeat && draggingSeat.id === seat.id, selected: isSeatSelected(seat, room.id)}]"
@@ -377,625 +374,641 @@
                                             @mousedown.stop="onMouseDown($event, seat, room.id)"
                                             @click.stop="onSeatClick(seat, room.id)"
                                             @dblclick.stop="onSeatDblClick(seat, room.id)">
-                                            <span class="seat-number">{{seat.seatNumber}}</span>
-                                            <span class="seat-status">{{getSeatStatusText(seat)}}</span>
-                                            <span v-if="seat.tags" class="seat-tags">{{formatTags(seat.tags)}}</span>
-                                            <!-- 删除按钮（编辑模式） -->
-                                            <div v-if="isEditMode[room.id]" class="seat-delete-btn"
-                                                @click.stop="deleteSingleSeat(seat.id, room.id)">✕</div>
-                                            <!-- 过道拉伸手柄 -->
-                                            <template v-if="isEditMode[room.id] && seat.seatType === 2">
-                                                <div class="resize-handle resize-handle-e" @mousedown.stop="onResizeStart($event, seat, room.id, 'e')"></div>
-                                                <div class="resize-handle resize-handle-w" @mousedown.stop="onResizeStart($event, seat, room.id, 'w')"></div>
-                                                <div class="resize-handle resize-handle-s" @mousedown.stop="onResizeStart($event, seat, room.id, 's')"></div>
-                                                <div class="resize-handle resize-handle-n" @mousedown.stop="onResizeStart($event, seat, room.id, 'n')"></div>
-                                            </template>
-                                        </div>
-                                    </template>
-                                    <div v-else style="text-align: center; padding-top: 200px; color: #999;">
-                                        暂无座位数据
+                                        <span class="seat-number">{{seat.seatNumber}}</span>
+                                        <span class="seat-status">{{getSeatStatusText(seat)}}</span>
+                                        <span v-if="seat.tags" class="seat-tags">{{formatTags(seat.tags)}}</span>
+                                        <div v-if="isEditMode[room.id]" class="seat-delete-btn"
+                                             @click.stop="deleteSingleSeat(seat.id, room.id)">✕</div>
+                                        <template v-if="isEditMode[room.id] && seat.seatType === 2">
+                                            <div class="resize-handle resize-handle-e" @mousedown.stop="onResizeStart($event, seat, room.id, 'e')"></div>
+                                            <div class="resize-handle resize-handle-w" @mousedown.stop="onResizeStart($event, seat, room.id, 'w')"></div>
+                                            <div class="resize-handle resize-handle-s" @mousedown.stop="onResizeStart($event, seat, room.id, 's')"></div>
+                                            <div class="resize-handle resize-handle-n" @mousedown.stop="onResizeStart($event, seat, room.id, 'n')"></div>
+                                        </template>
                                     </div>
+                                </template>
+                                <div v-else style="text-align: center; padding-top: 200px; color: #999;">
+                                    暂无座位数据
                                 </div>
-                                
-                                <!-- 图例 -->
-                                <div class="seat-legend">
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #52c41a;"></div>
-                                        <span>空闲</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #ff4d4f;"></div>
-                                        <span>占用</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #d9d9d9;"></div>
-                                        <span>维护中</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #fffbe6; border: 2px dashed #faad14;"></div>
-                                        <span>过道</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: transparent; border: 1px dashed #d9d9d9;"></div>
-                                        <span>空隙</span>
-                                    </div>
+                            </div>
+
+                            <div class="seat-legend">
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: #52c41a;"></div>
+                                    <span>空闲</span>
                                 </div>
-                                
-                                <!-- 座位图预览 -->
-                                <div class="seat-map-preview">
-                                    <div class="seat-map-title">座位图预览</div>
-                                    <div class="seat-map-container" :id="'seatMap-' + room.id">
-                                        <div 
-                                            v-for="seat in roomSeats[room.id]" 
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: #ff4d4f;"></div>
+                                    <span>占用</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: #d9d9d9;"></div>
+                                    <span>维护中</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: #fffbe6; border: 2px dashed #faad14;"></div>
+                                    <span>过道</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: transparent; border: 1px dashed #d9d9d9;"></div>
+                                    <span>空隙</span>
+                                </div>
+                            </div>
+
+                            <div class="seat-map-preview">
+                                <div class="seat-map-title">座位图预览</div>
+                                <div class="seat-map-container" :id="'seatMap-' + room.id">
+                                    <div
+                                            v-for="seat in roomSeats[room.id]"
                                             :key="'map-' + seat.id"
                                             class="seat-map-item"
                                             :class="getSeatClass(seat)"
                                             :style="getSeatMapStyle(seat)">
-                                            <span>{{seat.seatNumber}}</span>
-                                            <span v-if="seat.tags" class="seat-tag-icons">{{getTagIcons(seat.tags)}}</span>
-                                        </div>
+                                        <span>{{seat.seatNumber}}</span>
+                                        <span v-if="seat.tags" class="seat-tag-icons">{{getTagIcons(seat.tags)}}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </main>
-            </div>
+                </div>
+            </main>
         </div>
+    </div>
 
-        <!-- 编辑自习室弹窗 -->
-        <el-dialog v-model="editDialogVisible" title="编辑自习室信息" width="600px">
-            <el-form :model="editForm" label-width="100px">
-                <el-form-item label="自习室名称">
-                    <el-input v-model="editForm.name" disabled></el-input>
-                </el-form-item>
-                <el-form-item label="开放时间">
-                    <el-time-picker v-model="editForm.openTime" placeholder="开始时间" style="width: 45%;"></el-time-picker>
-                    <span style="margin: 0 10px;">至</span>
-                    <el-time-picker v-model="editForm.closeTime" placeholder="结束时间" style="width: 45%;"></el-time-picker>
-                </el-form-item>
-                <el-form-item label="状态">
-                    <el-radio-group v-model="editForm.status">
-                        <el-radio :label="1">开放</el-radio>
-                        <el-radio :label="0">关闭</el-radio>
-                        <el-radio :label="2">维护中</el-radio>
-                    </el-radio-group>
-                </el-form-item>
-                <el-form-item label="描述">
-                    <el-input type="textarea" v-model="editForm.description" rows="3"></el-input>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="editDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="saveRoom" :loading="saving">保存</el-button>
-            </template>
-        </el-dialog>
-        
-        <!-- 添加过道/空隙弹窗 -->
-        <el-dialog v-model="specialSeatDialogVisible" title="添加过道/空隙" width="400px">
-            <el-form :model="specialSeatForm" label-width="100px">
-                <el-form-item label="类型">
-                    <el-radio-group v-model="specialSeatForm.seatType">
-                        <el-radio :label="2">过道/柱子</el-radio>
-                        <el-radio :label="3">空隙</el-radio>
-                    </el-radio-group>
-                </el-form-item>
-                <el-form-item label="标识">
-                    <el-input v-model="specialSeatForm.seatNumber" placeholder="如：柱子A、过道1、空隙1"></el-input>
-                </el-form-item>
-                <el-form-item label="位置X">
-                    <el-input-number v-model="specialSeatForm.positionX" :min="0" :step="20"></el-input-number>
-                </el-form-item>
-                <el-form-item label="位置Y">
-                    <el-input-number v-model="specialSeatForm.positionY" :min="0" :step="20"></el-input-number>
-                </el-form-item>
-                <el-form-item label="宽度">
-                    <el-input-number v-model="specialSeatForm.width" :min="20" :max="400" :step="20" :disabled="specialSeatForm.seatType === 3"></el-input-number>
-                    <span style="color: #999; margin-left: 8px;">px（空隙固定80px）</span>
-                </el-form-item>
-                <el-form-item label="高度">
-                    <el-input-number v-model="specialSeatForm.height" :min="20" :max="300" :step="20" :disabled="specialSeatForm.seatType === 3"></el-input-number>
-                    <span style="color: #999; margin-left: 8px;">px（空隙固定60px）</span>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="specialSeatDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="addSpecialSeat" :loading="saving">添加</el-button>
-            </template>
-        </el-dialog>
-        
-        <!-- 管理标签弹窗 -->
-        <el-dialog v-model="tagDialogVisible" title="管理座位标签" width="500px">
-            <div style="margin-bottom: 20px;">
-                <h4>现有标签</h4>
-                <div style="margin-top: 10px;">
-                    <el-tag 
-                        v-for="tag in seatTags[currentRoomId] || []" 
+    <el-dialog v-model="editDialogVisible" title="编辑自习室信息" width="600px">
+        <el-form :model="editForm" label-width="100px">
+            <el-form-item label="自习室名称">
+                <el-input v-model="editForm.name" disabled></el-input>
+            </el-form-item>
+            <el-form-item label="开放时间">
+                <el-time-picker v-model="editForm.openTime" placeholder="开始时间" style="width: 45%;"></el-time-picker>
+                <span style="margin: 0 10px;">至</span>
+                <el-time-picker v-model="editForm.closeTime" placeholder="结束时间" style="width: 45%;"></el-time-picker>
+            </el-form-item>
+            <el-form-item label="状态">
+                <el-radio-group v-model="editForm.status">
+                    <el-radio :label="1">开放</el-radio>
+                    <el-radio :label="0">关闭</el-radio>
+                    <el-radio :label="2">维护中</el-radio>
+                </el-radio-group>
+            </el-form-item>
+            <el-form-item label="描述">
+                <el-input type="textarea" v-model="editForm.description" rows="3"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="editDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="saveRoom" :loading="saving">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <el-dialog v-model="specialSeatDialogVisible" title="添加过道/空隙" width="400px">
+        <el-form :model="specialSeatForm" label-width="100px">
+            <el-form-item label="类型">
+                <el-radio-group v-model="specialSeatForm.seatType">
+                    <el-radio :label="2">过道/柱子</el-radio>
+                    <el-radio :label="3">空隙</el-radio>
+                </el-radio-group>
+            </el-form-item>
+            <el-form-item label="标识">
+                <el-input v-model="specialSeatForm.seatNumber" placeholder="如：柱子A、过道1、空隙1"></el-input>
+            </el-form-item>
+            <el-form-item label="位置X">
+                <el-input-number v-model="specialSeatForm.positionX" :min="0" :step="20"></el-input-number>
+            </el-form-item>
+            <el-form-item label="位置Y">
+                <el-input-number v-model="specialSeatForm.positionY" :min="0" :step="20"></el-input-number>
+            </el-form-item>
+            <el-form-item label="宽度">
+                <el-input-number v-model="specialSeatForm.width" :min="20" :max="400" :step="20" :disabled="specialSeatForm.seatType === 3"></el-input-number>
+                <span style="color: #999; margin-left: 8px;">px（空隙固定80px）</span>
+            </el-form-item>
+            <el-form-item label="高度">
+                <el-input-number v-model="specialSeatForm.height" :min="20" :max="300" :step="20" :disabled="specialSeatForm.seatType === 3"></el-input-number>
+                <span style="color: #999; margin-left: 8px;">px（空隙固定60px）</span>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="specialSeatDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="addSpecialSeat" :loading="saving">添加</el-button>
+        </template>
+    </el-dialog>
+
+    <el-dialog v-model="tagDialogVisible" title="管理座位标签" width="500px">
+        <div style="margin-bottom: 20px;">
+            <h4>现有标签</h4>
+            <div style="margin-top: 10px;">
+                <el-tag
+                        v-for="tag in seatTags[currentRoomId] || []"
                         :key="tag.id"
                         :color="tag.tagColor"
                         closable
                         @close="deleteTag(tag.id)"
                         style="margin: 5px;">
-                        {{tag.tagName}}
-                    </el-tag>
-                </div>
+                    {{tag.tagName}}
+                </el-tag>
             </div>
-            <el-divider></el-divider>
-            <el-form :model="tagForm" label-width="100px">
-                <el-form-item label="标签名称">
-                    <el-input v-model="tagForm.tagName" placeholder="如：靠窗、有插座"></el-input>
-                </el-form-item>
-                <el-form-item label="标签颜色">
-                    <el-color-picker v-model="tagForm.tagColor"></el-color-picker>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="tagDialogVisible = false">关闭</el-button>
-                <el-button type="primary" @click="addTag" :loading="saving">添加标签</el-button>
-            </template>
-        </el-dialog>
-        
-        <!-- 编辑座位标签弹窗 -->
-        <el-dialog v-model="seatTagDialogVisible" title="编辑座位标签" width="500px">
-            <el-form label-width="100px">
-                <el-form-item label="座位">
-                    <span>{{currentSeat?.seatNumber}}</span>
-                </el-form-item>
-                <el-form-item label="预设标签">
-                    <div style="margin-bottom: 10px;">
-                        <el-tag 
-                            v-for="tag in presetTags" 
+        </div>
+        <el-divider></el-divider>
+        <el-form :model="tagForm" label-width="100px">
+            <el-form-item label="标签名称">
+                <el-input v-model="tagForm.tagName" placeholder="如：靠窗、有插座"></el-input>
+            </el-form-item>
+            <el-form-item label="标签颜色">
+                <el-color-picker v-model="tagForm.tagColor"></el-color-picker>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="tagDialogVisible = false">关闭</el-button>
+            <el-button type="primary" @click="addTag" :loading="saving">添加标签</el-button>
+        </template>
+    </el-dialog>
+
+    <el-dialog v-model="seatTagDialogVisible" title="编辑座位标签" width="500px">
+        <el-form label-width="100px">
+            <el-form-item label="座位">
+                <span>{{currentSeat?.seatNumber}}</span>
+            </el-form-item>
+            <el-form-item label="预设标签">
+                <div style="margin-bottom: 10px;">
+                    <el-tag
+                            v-for="tag in presetTags"
                             :key="tag"
                             :type="currentSeatTags.includes(tag) ? 'primary' : 'info'"
                             @click="togglePresetTag(tag)"
                             style="margin: 4px; cursor: pointer;"
                             effect="dark">
-                            {{tag}}
-                        </el-tag>
-                    </div>
-                    <div style="color: #999; font-size: 12px;">点击标签选中/取消</div>
-                </el-form-item>
-                <el-form-item label="自定义标签">
-                    <div style="display: flex; gap: 8px;">
-                        <el-input v-model="customTagInput" placeholder="输入自定义标签" @keyup.enter="addCustomTag"></el-input>
-                        <el-button @click="addCustomTag">添加</el-button>
-                    </div>
-                    <div style="margin-top: 8px;">
-                        <el-tag 
-                            v-for="(tag, index) in currentSeatTags.filter(t => !presetTags.includes(t))" 
+                        {{tag}}
+                    </el-tag>
+                </div>
+                <div style="color: #999; font-size: 12px;">点击标签选中/取消</div>
+            </el-form-item>
+            <el-form-item label="自定义标签">
+                <div style="display: flex; gap: 8px;">
+                    <el-input v-model="customTagInput" placeholder="输入自定义标签" @keyup.enter="addCustomTag"></el-input>
+                    <el-button @click="addCustomTag">添加</el-button>
+                </div>
+                <div style="margin-top: 8px;">
+                    <el-tag
+                            v-for="(tag, index) in currentSeatTags.filter(t => !presetTags.includes(t))"
                             :key="tag"
                             closable
                             @close="removeCustomTag(tag)"
                             style="margin: 4px;">
-                            {{tag}}
-                        </el-tag>
-                    </div>
-                </el-form-item>
-                <el-divider></el-divider>
-                <el-form-item label="已选标签">
-                    <div>
-                        <el-tag 
-                            v-for="tag in currentSeatTags" 
+                        {{tag}}
+                    </el-tag>
+                </div>
+            </el-form-item>
+            <el-divider></el-divider>
+            <el-form-item label="已选标签">
+                <div>
+                    <el-tag
+                            v-for="tag in currentSeatTags"
                             :key="tag"
                             type="success"
                             style="margin: 4px;">
-                            {{tag}}
-                        </el-tag>
-                        <span v-if="currentSeatTags.length === 0" style="color: #999;">暂无标签</span>
-                    </div>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="seatTagDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="saveSeatTags" :loading="saving">保存</el-button>
-            </template>
-        </el-dialog>
-    </div>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <script th:inline="none">
-        const { createApp, ref, reactive, onMounted } = Vue;
-        const { ElMessage, ElMessageBox } = ElementPlus;
-        
-        createApp({
-            setup() {
-                const loading = ref(false);
-                const rooms = ref([]);
-                const roomSeats = ref({});
-                const editDialogVisible = ref(false);
-                const saving = ref(false);
-                const editForm = reactive({ id: null, name: '', openTime: '', closeTime: '', status: 1, description: '' });
-                
-                // 拖拽相关状态
-                const isEditMode = ref({});
-                const isSelectMode = ref({});
-                const draggingSeat = ref(null);
-                const dragOffset = ref({ x: 0, y: 0 });
-                const containerRect = ref({});
-                
-                // 框选相关状态
-                const selectionBox = ref({});
-                const isSelecting = ref({});
-                const selectionStart = ref({});
-                const selectedSeats = ref({});
-                const batchDragging = ref(false);
-                const batchDragOffset = ref({ x: 0, y: 0 });
-                
-                // 标签管理
-                const specialSeatDialogVisible = ref(false);
-                const specialSeatForm = reactive({ roomId: null, seatType: 2, seatNumber: '', positionX: 0, positionY: 0, width: 80, height: 60 });
-                const tagDialogVisible = ref(false);
-                const seatTagDialogVisible = ref(false);
-                const seatTags = ref({});
-                const tagForm = reactive({ tagName: '', tagColor: '#409EFF' });
-                const currentRoomId = ref(null);
-                const currentSeat = ref(null);
-                const currentSeatTags = ref([]);
-                const customTagInput = ref('');
-                
-                // 预设常用标签
-                const presetTags = ['靠窗', '靠墙', '有插座', '有台灯', '安静区', '空调区', '阳光充足', '角落位置', '宽敞', '靠门近'];
-                
-                // 默认座位间距
-                const SEAT_WIDTH = 80;
-                const SEAT_HEIGHT = 60;
-                const GAP_X = 20;
-                const GAP_Y = 20;
+                        {{tag}}
+                    </el-tag>
+                    <span v-if="currentSeatTags.length === 0" style="color: #999;">暂无标签</span>
+                </div>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="seatTagDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="saveSeatTags" :loading="saving">保存</el-button>
+        </template>
+    </el-dialog>
+    <el-dialog v-model="renameDialogVisible" title="重命名座位" width="360px">
+        <el-form label-width="80px">
+            <el-form-item label="新名称">
+                <el-input v-model="renameForm.seatNumber" placeholder="输入新名称" @keyup.enter="confirmRename"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="renameDialogVisible = false">取消</el-button>
+            <el-button v-if="renameForm.seatType === 1" type="info" @click="openTagEditFromRename">编辑标签</el-button>
+            <el-button type="primary" @click="confirmRename" :loading="saving">确认</el-button>
+        </template>
+    </el-dialog>
+</div>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script th:inline="none">
+    const { createApp, ref, reactive, onMounted } = Vue;
+    const { ElMessage, ElMessageBox } = ElementPlus;
 
-                const fetchRooms = async () => {
-                    loading.value = true;
-                    try {
-                        const res = await axios.get('/api/roomadmin/rooms');
-                        if (res.data.code === 200) {
-                            rooms.value = res.data.data;
-                            // 获取每个自习室的座位
-                            for (const room of rooms.value) {
-                                isEditMode.value[room.id] = false;
-                                isSelectMode.value[room.id] = false;
-                                selectedSeats.value[room.id] = [];
-                                await fetchSeats(room.id);
-                                await fetchSeatTags(room.id);
+    createApp({
+        setup() {
+            const loading = ref(false);
+            const rooms = ref([]);
+            const roomSeats = ref({});
+            const editDialogVisible = ref(false);
+            const saving = ref(false);
+            const editForm = reactive({ id: null, name: '', openTime: '', closeTime: '', status: 1, description: '' });
+
+            // 拖拽相关状态
+            const isEditMode = ref({});
+            const isSelectMode = ref({});
+            const draggingSeat = ref(null);
+            const dragOffset = ref({ x: 0, y: 0 });
+            const containerRect = ref({});
+
+            // 框选相关状态
+            const selectionBox = ref({});
+            const isSelecting = ref({});
+            const selectionStart = ref({});
+            const selectedSeats = ref({});
+            const batchDragging = ref(false);
+            const batchDragOffset = ref({ x: 0, y: 0 });
+
+            // 标签管理
+            const specialSeatDialogVisible = ref(false);
+            const specialSeatForm = reactive({ roomId: null, seatType: 2, seatNumber: '', positionX: 0, positionY: 0, width: 80, height: 60 });
+            const tagDialogVisible = ref(false);
+            const seatTagDialogVisible = ref(false);
+            const seatTags = ref({});
+            const tagForm = reactive({ tagName: '', tagColor: '#409EFF' });
+            const currentRoomId = ref(null);
+            const currentSeat = ref(null);
+            const currentSeatTags = ref([]);
+            const customTagInput = ref('');
+
+            // 预设常用标签
+            const presetTags = ['靠窗', '靠墙', '有插座', '有台灯', '安静区', '空调区', '阳光充足', '角落位置', '宽敞', '靠门近'];
+
+            // 重命名相关状态
+            const renameDialogVisible = ref(false);
+            const renameForm = reactive({ id: null, seatNumber: '', roomId: null, seatType: 1 });
+
+            // 默认座位间距
+            const SEAT_WIDTH = 80;
+            const SEAT_HEIGHT = 60;
+            const GAP_X = 20;
+            const GAP_Y = 20;
+
+            // 新增：防抖定时器，用于解决单击双击冲突
+            let clickTimer = null;
+
+            const fetchRooms = async () => {
+                loading.value = true;
+                try {
+                    const res = await axios.get('/api/roomadmin/rooms');
+                    if (res.data.code === 200) {
+                        rooms.value = res.data.data;
+                        // 获取每个自习室的座位
+                        for (const room of rooms.value) {
+                            isEditMode.value[room.id] = false;
+                            isSelectMode.value[room.id] = false;
+                            selectedSeats.value[room.id] = [];
+                            await fetchSeats(room.id);
+                            await fetchSeatTags(room.id);
+                        }
+                    }
+                } catch (e) {
+                    ElMessage.error('获取自习室失败');
+                }
+                finally { loading.value = false; }
+            };
+
+            const fetchSeats = async (roomId) => {
+                try {
+                    const res = await axios.get(`/api/roomadmin/room/${roomId}/seats`);
+                    if (res.data.code === 200) {
+                        let seats = res.data.data || [];
+                        console.log(`Room ${roomId} seats:`, seats);
+                        // 如果没有自定义位置，则按网格布局计算默认位置
+                        seats = seats.map((seat, index) => {
+                            if (seat.positionX === null || seat.positionY === null || seat.positionX === undefined || seat.positionY === undefined) {
+                                const col = (seat.colNum || 1) - 1;
+                                const row = (seat.rowNum || 1) - 1;
+                                seat.positionX = col * (SEAT_WIDTH + GAP_X) + GAP_X;
+                                seat.positionY = row * (SEAT_HEIGHT + GAP_Y) + GAP_Y;
                             }
-                        }
-                    } catch (e) { 
-                        ElMessage.error('获取自习室失败'); 
+                            return seat;
+                        });
+                        // 使用解构赋值触发响应式更新
+                        roomSeats.value = { ...roomSeats.value, [roomId]: seats };
+                        console.log(`RoomSeats after update:`, roomSeats.value);
                     }
-                    finally { loading.value = false; }
-                };
+                } catch (e) {
+                    console.error(`Fetch seats error for room ${roomId}:`, e);
+                }
+            };
 
-                const fetchSeats = async (roomId) => {
-                    try {
-                        const res = await axios.get(`/api/roomadmin/room/${roomId}/seats`);
-                        if (res.data.code === 200) {
-                            let seats = res.data.data || [];
-                            console.log(`Room ${roomId} seats:`, seats);
-                            // 如果没有自定义位置，则按网格布局计算默认位置
-                            seats = seats.map((seat, index) => {
-                                if (seat.positionX === null || seat.positionY === null || seat.positionX === undefined || seat.positionY === undefined) {
-                                    const col = (seat.colNum || 1) - 1;
-                                    const row = (seat.rowNum || 1) - 1;
-                                    seat.positionX = col * (SEAT_WIDTH + GAP_X) + GAP_X;
-                                    seat.positionY = row * (SEAT_HEIGHT + GAP_Y) + GAP_Y;
-                                }
-                                return seat;
-                            });
-                            // 使用解构赋值触发响应式更新
-                            roomSeats.value = { ...roomSeats.value, [roomId]: seats };
-                            console.log(`RoomSeats after update:`, roomSeats.value);
-                        }
-                    } catch (e) {
-                        console.error(`Fetch seats error for room ${roomId}:`, e);
+            const fetchSeatTags = async (roomId) => {
+                try {
+                    const res = await axios.get(`/api/roomadmin/room/${roomId}/seat-tags`);
+                    if (res.data.code === 200) {
+                        seatTags.value = { ...seatTags.value, [roomId]: res.data.data };
                     }
-                };
-                
-                const fetchSeatTags = async (roomId) => {
-                    try {
-                        const res = await axios.get(`/api/roomadmin/room/${roomId}/seat-tags`);
-                        if (res.data.code === 200) {
-                            seatTags.value = { ...seatTags.value, [roomId]: res.data.data };
-                        }
-                    } catch (e) {
-                        console.error(`Fetch tags error for room ${roomId}:`, e);
-                    }
-                };
+                } catch (e) {
+                    console.error(`Fetch tags error for room ${roomId}:`, e);
+                }
+            };
 
-                const getSeatClass = (status) => {
-                    if (status.seatType === 2) return 'seat-aisle';
-                    if (status.seatType === 3) return 'seat-empty';
-                    if (status.status === 1) return 'seat-available';
-                    if (status.status === 2) return 'seat-occupied';
-                    return 'seat-maintenance';
+            const getSeatClass = (status) => {
+                if (status.seatType === 2) return 'seat-aisle';
+                if (status.seatType === 3) return 'seat-empty';
+                if (status.status === 1) return 'seat-available';
+                if (status.status === 2) return 'seat-occupied';
+                return 'seat-maintenance';
+            };
+
+            const getSeatStatusText = (seat) => {
+                if (seat.seatType === 2) return '过道';
+                if (seat.seatType === 3) return '空隙';
+                if (seat.status === 1) return '空闲';
+                if (seat.status === 2) return '占用';
+                return '维护';
+            };
+
+            const getSeatStyle = (seat) => {
+                const style = {
+                    left: seat.positionX + 'px',
+                    top: seat.positionY + 'px'
                 };
-                
-                const getSeatStatusText = (seat) => {
-                    if (seat.seatType === 2) return '过道';
-                    if (seat.seatType === 3) return '空隙';
-                    if (seat.status === 1) return '空闲';
-                    if (seat.status === 2) return '占用';
-                    return '维护';
+                // 过道/柱子支持自定义尺寸
+                if (seat.seatType === 2 && seat.width) {
+                    style.width = seat.width + 'px';
+                }
+                if (seat.seatType === 2 && seat.height) {
+                    style.height = seat.height + 'px';
+                }
+                return style;
+            };
+
+            const getSeatMapStyle = (seat) => {
+                const style = {
+                    left: (seat.positionX * 0.75) + 'px',
+                    top: (seat.positionY * 0.75) + 'px'
                 };
-                
-                const getSeatStyle = (seat) => {
-                    const style = {
-                        left: seat.positionX + 'px',
-                        top: seat.positionY + 'px'
+                // 过道/柱子支持自定义尺寸
+                if (seat.seatType === 2 && seat.width) {
+                    style.width = (seat.width * 0.75) + 'px';
+                    style.height = (seat.height * 0.75) + 'px';
+                } else {
+                    style.width = '60px';
+                    style.height = '45px';
+                }
+                return style;
+            };
+
+            const formatTags = (tags) => {
+                if (!tags) return '';
+                try {
+                    const tagArray = JSON.parse(tags);
+                    return tagArray.join('、');
+                } catch (e) {
+                    return tags;
+                }
+            };
+
+            const getTagIcons = (tags) => {
+                if (!tags) return '';
+                try {
+                    const tagArray = JSON.parse(tags);
+                    const icons = {
+                        '靠窗': '🪟',
+                        '靠墙': '🧱',
+                        '有插座': '🔌',
+                        '有台灯': '💡',
+                        '安静区': '🔇',
+                        '空调区': '❄️',
+                        '阳光充足': '☀️',
+                        '角落位置': '📐',
+                        '宽敞': '↔️',
+                        '靠门近': '🚪'
                     };
-                    // 过道/柱子支持自定义尺寸
-                    if (seat.seatType === 2 && seat.width) {
-                        style.width = seat.width + 'px';
-                    }
-                    if (seat.seatType === 2 && seat.height) {
-                        style.height = seat.height + 'px';
-                    }
-                    return style;
-                };
-                
-                const getSeatMapStyle = (seat) => {
-                    const style = {
-                        left: (seat.positionX * 0.75) + 'px',
-                        top: (seat.positionY * 0.75) + 'px'
-                    };
-                    // 过道/柱子支持自定义尺寸
-                    if (seat.seatType === 2 && seat.width) {
-                        style.width = (seat.width * 0.75) + 'px';
-                        style.height = (seat.height * 0.75) + 'px';
-                    } else {
-                        style.width = '60px';
-                        style.height = '45px';
-                    }
-                    return style;
-                };
-                
-                const formatTags = (tags) => {
-                    if (!tags) return '';
-                    try {
-                        const tagArray = JSON.parse(tags);
-                        return tagArray.join('、');
-                    } catch (e) {
-                        return tags;
-                    }
-                };
-                
-                const getTagIcons = (tags) => {
-                    if (!tags) return '';
-                    try {
-                        const tagArray = JSON.parse(tags);
-                        const icons = {
-                            '靠窗': '🪟',
-                            '靠墙': '🧱',
-                            '有插座': '🔌',
-                            '有台灯': '💡',
-                            '安静区': '🔇',
-                            '空调区': '❄️',
-                            '阳光充足': '☀️',
-                            '角落位置': '📐',
-                            '宽敞': '↔️',
-                            '靠门近': '🚪'
-                        };
-                        return tagArray.map(t => icons[t] || '●').join('');
-                    } catch (e) {
-                        return '';
-                    }
-                };
+                    return tagArray.map(t => icons[t] || '●').join('');
+                } catch (e) {
+                    return '';
+                }
+            };
 
-                // 切换编辑模式
-                const toggleEditMode = (roomId) => {
-                    isEditMode.value[roomId] = !isEditMode.value[roomId];
-                    if (!isEditMode.value[roomId]) {
-                        isSelectMode.value[roomId] = false;
-                        selectedSeats.value[roomId] = [];
+            // 切换编辑模式
+            const toggleEditMode = (roomId) => {
+                isEditMode.value[roomId] = !isEditMode.value[roomId];
+                if (!isEditMode.value[roomId]) {
+                    isSelectMode.value[roomId] = false;
+                    selectedSeats.value[roomId] = [];
+                }
+            };
+
+            // 切换框选模式
+            const toggleSelectMode = (roomId) => {
+                isSelectMode.value[roomId] = !isSelectMode.value[roomId];
+                if (!isSelectMode.value[roomId]) {
+                    selectedSeats.value[roomId] = [];
+                }
+            };
+
+            // 检查座位是否被选中
+            const isSeatSelected = (seat, roomId) => {
+                return selectedSeats.value[roomId]?.includes(seat.id);
+            };
+
+            // 容器鼠标按下（开始框选）
+            const onContainerMouseDown = (e, roomId) => {
+                if (!isEditMode.value[roomId] || !isSelectMode.value[roomId]) return;
+                if (e.target.closest('.seat-item')) return;
+
+                isSelecting.value[roomId] = true;
+                const container = e.currentTarget;
+                const rect = container.getBoundingClientRect();
+                selectionStart.value[roomId] = {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+                selectionBox.value[roomId] = {
+                    left: selectionStart.value[roomId].x + 'px',
+                    top: selectionStart.value[roomId].y + 'px',
+                    width: '0px',
+                    height: '0px'
+                };
+            };
+
+            // 容器鼠标移动（框选中）
+            const onContainerMouseMove = (e, roomId) => {
+                if (!isEditMode.value[roomId]) return;
+
+                // 过道拉伸逻辑
+                if (resizingSeat.value && resizeStartData.value) {
+                    e.preventDefault();
+                    const dx = e.clientX - resizeStartData.value.mouseX;
+                    const dy = e.clientY - resizeStartData.value.mouseY;
+                    const d = resizeDir.value;
+                    const MIN = 20;
+                    if (d === 'e') {
+                        resizingSeat.value.width = Math.max(MIN, Math.round((resizeStartData.value.origW + dx) / 20) * 20);
+                    } else if (d === 'w') {
+                        const newW = Math.max(MIN, Math.round((resizeStartData.value.origW - dx) / 20) * 20);
+                        resizingSeat.value.positionX = resizeStartData.value.origX + (resizeStartData.value.origW - newW);
+                        resizingSeat.value.width = newW;
+                    } else if (d === 's') {
+                        resizingSeat.value.height = Math.max(MIN, Math.round((resizeStartData.value.origH + dy) / 20) * 20);
+                    } else if (d === 'n') {
+                        const newH = Math.max(MIN, Math.round((resizeStartData.value.origH - dy) / 20) * 20);
+                        resizingSeat.value.positionY = resizeStartData.value.origY + (resizeStartData.value.origH - newH);
+                        resizingSeat.value.height = newH;
                     }
-                };
-                
-                // 切换框选模式
-                const toggleSelectMode = (roomId) => {
-                    isSelectMode.value[roomId] = !isSelectMode.value[roomId];
-                    if (!isSelectMode.value[roomId]) {
-                        selectedSeats.value[roomId] = [];
-                    }
-                };
-                
-                // 检查座位是否被选中
-                const isSeatSelected = (seat, roomId) => {
-                    return selectedSeats.value[roomId]?.includes(seat.id);
-                };
-                
-                // 容器鼠标按下（开始框选）
-                const onContainerMouseDown = (e, roomId) => {
-                    if (!isEditMode.value[roomId] || !isSelectMode.value[roomId]) return;
-                    if (e.target.closest('.seat-item')) return;
-                    
-                    isSelecting.value[roomId] = true;
+                    return;
+                }
+                if (draggingSeat.value && !isSelectMode.value[roomId]) {
+                    e.preventDefault();
+
+                    let newX = e.clientX - containerRect.value.left - dragOffset.value.x;
+                    let newY = e.clientY - containerRect.value.top - dragOffset.value.y;
+
+                    // 限制在容器内
+                    newX = Math.max(0, Math.min(newX, containerRect.value.width - SEAT_WIDTH));
+                    newY = Math.max(0, Math.min(newY, containerRect.value.height - SEAT_HEIGHT));
+
+                    // 吸附到网格（20px的倍数）
+                    newX = Math.round(newX / 20) * 20;
+                    newY = Math.round(newY / 20) * 20;
+
+                    draggingSeat.value.positionX = newX;
+                    draggingSeat.value.positionY = newY;
+                    return;
+                }
+
+                // 框选逻辑
+                if (isSelecting.value[roomId]) {
                     const container = e.currentTarget;
                     const rect = container.getBoundingClientRect();
-                    selectionStart.value[roomId] = {
-                        x: e.clientX - rect.left,
-                        y: e.clientY - rect.top
-                    };
-                    selectionBox.value[roomId] = {
-                        left: selectionStart.value[roomId].x + 'px',
-                        top: selectionStart.value[roomId].y + 'px',
-                        width: '0px',
-                        height: '0px'
-                    };
-                };
-                
-                // 容器鼠标移动（框选中）
-                const onContainerMouseMove = (e, roomId) => {
-                    if (!isEditMode.value[roomId]) return;
+                    const currentX = e.clientX - rect.left;
+                    const currentY = e.clientY - rect.top;
 
-                    // 过道拉伸逻辑
-                    if (resizingSeat.value && resizeStartData.value) {
-                        e.preventDefault();
-                        const dx = e.clientX - resizeStartData.value.mouseX;
-                        const dy = e.clientY - resizeStartData.value.mouseY;
-                        const d = resizeDir.value;
-                        const MIN = 20;
-                        if (d === 'e') {
-                            resizingSeat.value.width = Math.max(MIN, Math.round((resizeStartData.value.origW + dx) / 20) * 20);
-                        } else if (d === 'w') {
-                            const newW = Math.max(MIN, Math.round((resizeStartData.value.origW - dx) / 20) * 20);
-                            resizingSeat.value.positionX = resizeStartData.value.origX + (resizeStartData.value.origW - newW);
-                            resizingSeat.value.width = newW;
-                        } else if (d === 's') {
-                            resizingSeat.value.height = Math.max(MIN, Math.round((resizeStartData.value.origH + dy) / 20) * 20);
-                        } else if (d === 'n') {
-                            const newH = Math.max(MIN, Math.round((resizeStartData.value.origH - dy) / 20) * 20);
-                            resizingSeat.value.positionY = resizeStartData.value.origY + (resizeStartData.value.origH - newH);
-                            resizingSeat.value.height = newH;
-                        }
-                        return;
-                    }
-                    if (draggingSeat.value && !isSelectMode.value[roomId]) {
-                        e.preventDefault();
-                        
-                        let newX = e.clientX - containerRect.value.left - dragOffset.value.x;
-                        let newY = e.clientY - containerRect.value.top - dragOffset.value.y;
-                        
-                        // 限制在容器内
-                        newX = Math.max(0, Math.min(newX, containerRect.value.width - SEAT_WIDTH));
-                        newY = Math.max(0, Math.min(newY, containerRect.value.height - SEAT_HEIGHT));
-                        
-                        // 吸附到网格（20px的倍数）
-                        newX = Math.round(newX / 20) * 20;
-                        newY = Math.round(newY / 20) * 20;
-                        
-                        draggingSeat.value.positionX = newX;
-                        draggingSeat.value.positionY = newY;
-                        return;
-                    }
-                    
-                    // 框选逻辑
-                    if (isSelecting.value[roomId]) {
-                        const container = e.currentTarget;
-                        const rect = container.getBoundingClientRect();
-                        const currentX = e.clientX - rect.left;
-                        const currentY = e.clientY - rect.top;
-                        
-                        const left = Math.min(selectionStart.value[roomId].x, currentX);
-                        const top = Math.min(selectionStart.value[roomId].y, currentY);
-                        const width = Math.abs(currentX - selectionStart.value[roomId].x);
-                        const height = Math.abs(currentY - selectionStart.value[roomId].y);
-                        
-                        selectionBox.value[roomId] = {
-                            left: left + 'px',
-                            top: top + 'px',
-                            width: width + 'px',
-                            height: height + 'px'
-                        };
-                        
-                        // 检测选中的座位
-                        const selected = [];
-                        roomSeats.value[roomId].forEach(seat => {
-                            const seatLeft = seat.positionX;
-                            const seatTop = seat.positionY;
-                            const seatRight = seatLeft + SEAT_WIDTH;
-                            const seatBottom = seatTop + SEAT_HEIGHT;
-                            
-                            if (seatRight > left && seatLeft < left + width &&
-                                seatBottom > top && seatTop < top + height) {
-                                selected.push(seat.id);
-                            }
-                        });
-                        selectedSeats.value[roomId] = selected;
-                    }
-                    
-                    // 批量拖拽逻辑
-                    if (batchDragging.value && selectedSeats.value[roomId]?.length > 0) {
-                        e.preventDefault();
-                        
-                        let newX = e.clientX - containerRect.value.left - batchDragOffset.value.x;
-                        let newY = e.clientY - containerRect.value.top - batchDragOffset.value.y;
-                        
-                        // 限制在容器内
-                        newX = Math.max(0, Math.min(newX, containerRect.value.width - SEAT_WIDTH));
-                        newY = Math.max(0, Math.min(newY, containerRect.value.height - SEAT_HEIGHT));
-                        
-                        // 吸附到网格
-                        newX = Math.round(newX / 20) * 20;
-                        newY = Math.round(newY / 20) * 20;
-                        
-                        // 移动所有选中的座位
-                        const deltaX = newX - batchDragStart.value.x;
-                        const deltaY = newY - batchDragStart.value.y;
-                        
-                        roomSeats.value[roomId].forEach(seat => {
-                            if (selectedSeats.value[roomId].includes(seat.id)) {
-                                seat.positionX = seat._originalX + deltaX;
-                                seat.positionY = seat._originalY + deltaY;
-                            }
-                        });
-                    }
-                };
-                
-                // 容器鼠标释放
-                const onContainerMouseUp = (roomId) => {
-                    if (resizingSeat.value) {
-                        resizingSeat.value = null;
-                        resizeStartData.value = null;
-                    }
-                    if (isSelecting.value[roomId]) {
-                        isSelecting.value[roomId] = false;
-                        selectionBox.value[roomId] = null;
-                    }
-                    if (batchDragging.value) {
-                        batchDragging.value = false;
-                    }
-                    // 清理单个拖拽状态
-                    if (draggingSeat.value) {
-                        draggingSeat.value = null;
-                    }
-                };
-                
-                // 鼠标按下开始拖拽
-                const onMouseDown = (e, seat, roomId) => {
-                    if (!isEditMode.value[roomId]) return;
-                    
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // 如果点击的是已选中的座位，开始批量拖拽
-                    if (isSelectMode.value[roomId] && selectedSeats.value[roomId]?.includes(seat.id)) {
-                        batchDragging.value = true;
-                        batchDragOffset.value = {
-                            x: e.clientX - e.target.getBoundingClientRect().left,
-                            y: e.clientY - e.target.getBoundingClientRect().top
-                        };
-                        const container = e.target.closest('.seat-layout-container');
-                        containerRect.value = container.getBoundingClientRect();
-                        batchDragStart.value = { x: seat.positionX, y: seat.positionY };
-                        
-                        // 保存原始位置
-                        roomSeats.value[roomId].forEach(s => {
-                            if (selectedSeats.value[roomId].includes(s.id)) {
-                                s._originalX = s.positionX;
-                                s._originalY = s.positionY;
-                            }
-                        });
-                        return;
-                    }
-                    
-                    draggingSeat.value = seat;
-                    const rect = e.target.getBoundingClientRect();
-                    dragOffset.value = {
-                        x: e.clientX - rect.left,
-                        y: e.clientY - rect.top
+                    const left = Math.min(selectionStart.value[roomId].x, currentX);
+                    const top = Math.min(selectionStart.value[roomId].y, currentY);
+                    const width = Math.abs(currentX - selectionStart.value[roomId].x);
+                    const height = Math.abs(currentY - selectionStart.value[roomId].y);
+
+                    selectionBox.value[roomId] = {
+                        left: left + 'px',
+                        top: top + 'px',
+                        width: width + 'px',
+                        height: height + 'px'
                     };
-                    
-                    // 获取容器位置
+
+                    // 检测选中的座位
+                    const selected = [];
+                    roomSeats.value[roomId].forEach(seat => {
+                        const seatLeft = seat.positionX;
+                        const seatTop = seat.positionY;
+                        const seatRight = seatLeft + SEAT_WIDTH;
+                        const seatBottom = seatTop + SEAT_HEIGHT;
+
+                        if (seatRight > left && seatLeft < left + width &&
+                            seatBottom > top && seatTop < top + height) {
+                            selected.push(seat.id);
+                        }
+                    });
+                    selectedSeats.value[roomId] = selected;
+                }
+
+                // 批量拖拽逻辑
+                if (batchDragging.value && selectedSeats.value[roomId]?.length > 0) {
+                    e.preventDefault();
+
+                    let newX = e.clientX - containerRect.value.left - batchDragOffset.value.x;
+                    let newY = e.clientY - containerRect.value.top - batchDragOffset.value.y;
+
+                    // 限制在容器内
+                    newX = Math.max(0, Math.min(newX, containerRect.value.width - SEAT_WIDTH));
+                    newY = Math.max(0, Math.min(newY, containerRect.value.height - SEAT_HEIGHT));
+
+                    // 吸附到网格
+                    newX = Math.round(newX / 20) * 20;
+                    newY = Math.round(newY / 20) * 20;
+
+                    // 移动所有选中的座位
+                    const deltaX = newX - batchDragStart.value.x;
+                    const deltaY = newY - batchDragStart.value.y;
+
+                    roomSeats.value[roomId].forEach(seat => {
+                        if (selectedSeats.value[roomId].includes(seat.id)) {
+                            seat.positionX = seat._originalX + deltaX;
+                            seat.positionY = seat._originalY + deltaY;
+                        }
+                    });
+                }
+            };
+
+            // 容器鼠标释放
+            const onContainerMouseUp = (roomId) => {
+                if (resizingSeat.value) {
+                    resizingSeat.value = null;
+                    resizeStartData.value = null;
+                }
+                if (isSelecting.value[roomId]) {
+                    isSelecting.value[roomId] = false;
+                    selectionBox.value[roomId] = null;
+                }
+                if (batchDragging.value) {
+                    batchDragging.value = false;
+                }
+                // 清理单个拖拽状态
+                if (draggingSeat.value) {
+                    draggingSeat.value = null;
+                }
+            };
+
+            // 鼠标按下开始拖拽
+            const onMouseDown = (e, seat, roomId) => {
+                if (!isEditMode.value[roomId]) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                // 如果点击的是已选中的座位，开始批量拖拽
+                if (isSelectMode.value[roomId] && selectedSeats.value[roomId]?.includes(seat.id)) {
+                    batchDragging.value = true;
+                    batchDragOffset.value = {
+                        x: e.clientX - e.target.getBoundingClientRect().left,
+                        y: e.clientY - e.target.getBoundingClientRect().top
+                    };
                     const container = e.target.closest('.seat-layout-container');
                     containerRect.value = container.getBoundingClientRect();
+                    batchDragStart.value = { x: seat.positionX, y: seat.positionY };
+
+                    // 保存原始位置
+                    roomSeats.value[roomId].forEach(s => {
+                        if (selectedSeats.value[roomId].includes(s.id)) {
+                            s._originalX = s.positionX;
+                            s._originalY = s.positionY;
+                        }
+                    });
+                    return;
+                }
+
+                draggingSeat.value = seat;
+                const rect = e.target.getBoundingClientRect();
+                dragOffset.value = {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
                 };
-                
-                // 点击座位
-                const onSeatClick = async (seat, roomId) => {
-                    // 如果在拖拽中或框选模式中，不处理点击
-                    if (draggingSeat.value || isSelectMode.value[roomId]) return;
-                    
-                    // 切换座位状态（仅普通座位）
-                    if (seat.seatType === 2 || seat.seatType === 3) return;
-                    
+
+                // 获取容器位置
+                const container = e.target.closest('.seat-layout-container');
+                containerRect.value = container.getBoundingClientRect();
+            };
+
+            // 修改：点击座位方法加入防抖逻辑
+            const onSeatClick = async (seat, roomId) => {
+                if (draggingSeat.value || isSelectMode.value[roomId]) return;
+                if (seat.seatType === 2 || seat.seatType === 3) return;
+
+                // 清除之前的定时器，防止双击触发两次单击
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+
+                // 设置250毫秒延迟判定
+                clickTimer = setTimeout(async () => {
                     const newStatus = seat.status === 1 ? 3 : 1;
                     try {
                         const res = await axios.put(`/api/roomadmin/seat/${seat.id}/status?status=${newStatus}`);
@@ -1005,333 +1018,382 @@
                         } else {
                             ElMessage.error(res.data.message || '更新失败');
                         }
-                    } catch (e) { 
-                        ElMessage.error('更新失败'); 
-                    }
-                };
-                
-                // 双击座位 - 编辑标签
-                const onSeatDblClick = (seat, roomId) => {
-                    if (!isEditMode.value[roomId]) return;
-                    
-                    currentSeat.value = seat;
-                    currentRoomId.value = roomId;
-                    customTagInput.value = '';
-                    try {
-                        currentSeatTags.value = seat.tags ? JSON.parse(seat.tags) : [];
                     } catch (e) {
-                        currentSeatTags.value = [];
+                        ElMessage.error('更新失败');
                     }
-                    seatTagDialogVisible.value = true;
-                };
-                
-                // 切换预设标签
-                const togglePresetTag = (tag) => {
-                    const index = currentSeatTags.value.indexOf(tag);
-                    if (index > -1) {
-                        currentSeatTags.value.splice(index, 1);
+                }, 250);
+            };
+
+            // 修改：双击座位重命名逻辑
+            const onSeatDblClick = (seat, roomId) => {
+                // 确认是双击，立刻清除单击的定时器，阻断状态切换请求
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+
+                // 建议仅在编辑模式下允许重命名，防止平时误触
+                if (!isEditMode.value[roomId]) {
+                    ElMessage.warning('请先点击"调整座位布局"进入编辑模式后再进行重命名操作');
+                    return;
+                }
+
+                renameForm.id = seat.id;
+                renameForm.seatNumber = seat.seatNumber;
+                renameForm.roomId = roomId;
+                renameForm.seatType = seat.seatType || 1;
+                currentSeat.value = seat;
+                currentRoomId.value = roomId;
+                renameDialogVisible.value = true;
+            };
+
+            // 确认重命名
+            const confirmRename = async () => {
+                if (!renameForm.seatNumber.trim()) {
+                    ElMessage.warning('名称不能为空');
+                    return;
+                }
+                saving.value = true;
+                try {
+                    const res = await axios.put(`/api/roomadmin/seat/${renameForm.id}/rename`, { seatNumber: renameForm.seatNumber });
+                    if (res.data.code === 200) {
+                        ElMessage.success('重命名成功');
+                        const seats = roomSeats.value[renameForm.roomId];
+                        if (seats) {
+                            const s = seats.find(x => x.id === renameForm.id);
+                            if (s) s.seatNumber = renameForm.seatNumber;
+                        }
+                        renameDialogVisible.value = false;
                     } else {
-                        currentSeatTags.value.push(tag);
+                        ElMessage.error(res.data.message || '重命名失败');
                     }
-                };
-                
-                // 添加自定义标签
-                const addCustomTag = () => {
-                    const tag = customTagInput.value.trim();
-                    if (!tag) return;
-                    if (currentSeatTags.value.includes(tag)) {
-                        ElMessage.warning('该标签已存在');
-                        return;
-                    }
+                } catch (e) {
+                    ElMessage.error('重命名失败');
+                } finally {
+                    saving.value = false;
+                }
+            };
+
+            // 从重命名弹窗跳转到标签编辑
+            const openTagEditFromRename = () => {
+                renameDialogVisible.value = false;
+                customTagInput.value = '';
+                try {
+                    currentSeatTags.value = currentSeat.value.tags ? JSON.parse(currentSeat.value.tags) : [];
+                } catch (e) {
+                    currentSeatTags.value = [];
+                }
+                seatTagDialogVisible.value = true;
+            };
+
+            // 切换预设标签
+            const togglePresetTag = (tag) => {
+                const index = currentSeatTags.value.indexOf(tag);
+                if (index > -1) {
+                    currentSeatTags.value.splice(index, 1);
+                } else {
                     currentSeatTags.value.push(tag);
-                    customTagInput.value = '';
-                };
-                
-                // 移除自定义标签
-                const removeCustomTag = (tag) => {
-                    const index = currentSeatTags.value.indexOf(tag);
-                    if (index > -1) {
-                        currentSeatTags.value.splice(index, 1);
+                }
+            };
+
+            // 添加自定义标签
+            const addCustomTag = () => {
+                const tag = customTagInput.value.trim();
+                if (!tag) return;
+                if (currentSeatTags.value.includes(tag)) {
+                    ElMessage.warning('该标签已存在');
+                    return;
+                }
+                currentSeatTags.value.push(tag);
+                customTagInput.value = '';
+            };
+
+            // 移除自定义标签
+            const removeCustomTag = (tag) => {
+                const index = currentSeatTags.value.indexOf(tag);
+                if (index > -1) {
+                    currentSeatTags.value.splice(index, 1);
+                }
+            };
+
+            // 重置位置
+            const resetPositions = (roomId) => {
+                ElMessageBox.confirm('确定要重置所有座位位置吗？', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    const seats = roomSeats.value[roomId];
+                    seats.forEach((seat, index) => {
+                        const col = seat.colNum - 1;
+                        const row = seat.rowNum - 1;
+                        seat.positionX = col * (SEAT_WIDTH + GAP_X) + GAP_X;
+                        seat.positionY = row * (SEAT_HEIGHT + GAP_Y) + GAP_Y;
+                    });
+                    ElMessage.success('位置已重置');
+                }).catch(() => {});
+            };
+
+            // 保存位置
+            const savePositions = async (roomId) => {
+                saving.value = true;
+                try {
+                    const seats = roomSeats.value[roomId].map(seat => ({
+                        id: seat.id,
+                        positionX: seat.positionX,
+                        positionY: seat.positionY,
+                        width: seat.width || 80,
+                        height: seat.height || 60
+                    }));
+
+                    const res = await axios.put(`/api/roomadmin/room/${roomId}/seats/positions`, seats);
+                    if (res.data.code === 200) {
+                        ElMessage.success('座位位置保存成功');
+                        isEditMode.value[roomId] = false;
+                        isSelectMode.value[roomId] = false;
+                        selectedSeats.value[roomId] = [];
+                    } else {
+                        ElMessage.error(res.data.message || '保存失败');
                     }
+                } catch (e) {
+                    ElMessage.error('保存失败');
+                } finally {
+                    saving.value = false;
+                }
+            };
+
+            // 显示添加特殊座位弹窗
+            const showAddSpecialSeat = (roomId) => {
+                currentRoomId.value = roomId;
+                specialSeatForm.roomId = roomId;
+                specialSeatForm.seatType = 2;
+                specialSeatForm.seatNumber = '';
+                specialSeatForm.positionX = 20;
+                specialSeatForm.positionY = 20;
+                specialSeatForm.width = 80;
+                specialSeatForm.height = 60;
+                specialSeatDialogVisible.value = true;
+            };
+
+            // 添加特殊座位
+            const addSpecialSeat = async () => {
+                saving.value = true;
+                try {
+                    // 构建提交数据
+                    const submitData = {
+                        seatType: specialSeatForm.seatType,
+                        seatNumber: specialSeatForm.seatNumber,
+                        positionX: specialSeatForm.positionX,
+                        positionY: specialSeatForm.positionY
+                    };
+                    // 过道/柱子可以自定义尺寸，空隙使用默认尺寸
+                    if (specialSeatForm.seatType === 2) {
+                        submitData.width = specialSeatForm.width;
+                        submitData.height = specialSeatForm.height;
+                    } else {
+                        submitData.width = 80;
+                        submitData.height = 60;
+                    }
+
+                    const res = await axios.post(`/api/roomadmin/room/${currentRoomId.value}/seat-special`, submitData);
+                    if (res.data.code === 200) {
+                        ElMessage.success('添加成功');
+                        specialSeatDialogVisible.value = false;
+                        await fetchSeats(currentRoomId.value);
+                    } else {
+                        ElMessage.error(res.data.message || '添加失败');
+                    }
+                } catch (e) {
+                    ElMessage.error('添加失败');
+                } finally {
+                    saving.value = false;
+                }
+            };
+
+            // 删除单个座位
+            const deleteSingleSeat = async (seatId, roomId) => {
+                try {
+                    await ElMessageBox.confirm('确定删除该座位？', '提示', { type: 'warning' });
+                    const res = await axios.delete(`/api/roomadmin/seat/${seatId}`);
+                    if (res.data.code === 200) {
+                        ElMessage.success('删除成功');
+                        await fetchSeats(roomId);
+                    } else ElMessage.error(res.data.message || '删除失败');
+                } catch (e) {}
+            };
+
+            // 过道拉伸相关状态
+            const resizingSeat = ref(null);
+            const resizeDir = ref('');
+            const resizeStartData = ref(null);
+
+            const onResizeStart = (e, seat, roomId, dir) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resizingSeat.value = seat;
+                resizeDir.value = dir;
+                const container = e.target.closest('.seat-layout-container');
+                containerRect.value = container.getBoundingClientRect();
+                resizeStartData.value = {
+                    mouseX: e.clientX,
+                    mouseY: e.clientY,
+                    origW: seat.width || 80,
+                    origH: seat.height || 60,
+                    origX: seat.positionX,
+                    origY: seat.positionY
                 };
-                
-                // 重置位置
-                const resetPositions = (roomId) => {
-                    ElMessageBox.confirm('确定要重置所有座位位置吗？', '提示', {
+            };
+
+            // 添加普通座位
+            const addSeat = async (roomId) => {
+                try {
+                    const res = await axios.post(`/api/roomadmin/room/${roomId}/seat`);
+                    if (res.data.code === 200) {
+                        ElMessage.success('添加成功，请拖动到合适位置后保存');
+                        await fetchSeats(roomId);
+                    } else {
+                        ElMessage.error(res.data.message || '添加失败');
+                    }
+                } catch (e) {
+                    ElMessage.error('添加失败');
+                }
+            };
+
+            // 批量删除座位
+            const batchDeleteSeats = async (roomId) => {
+                try {
+                    await ElMessageBox.confirm(`确定删除选中的 ${selectedSeats.value[roomId].length} 个座位吗？`, '提示', {
                         confirmButtonText: '确定',
                         cancelButtonText: '取消',
                         type: 'warning'
-                    }).then(() => {
-                        const seats = roomSeats.value[roomId];
-                        seats.forEach((seat, index) => {
-                            const col = seat.colNum - 1;
-                            const row = seat.rowNum - 1;
-                            seat.positionX = col * (SEAT_WIDTH + GAP_X) + GAP_X;
-                            seat.positionY = row * (SEAT_HEIGHT + GAP_Y) + GAP_Y;
-                        });
-                        ElMessage.success('位置已重置');
-                    }).catch(() => {});
-                };
-                
-                // 保存位置
-                const savePositions = async (roomId) => {
-                    saving.value = true;
-                    try {
-                        const seats = roomSeats.value[roomId].map(seat => ({
-                            id: seat.id,
-                            positionX: seat.positionX,
-                            positionY: seat.positionY,
-                            width: seat.width || 80,
-                            height: seat.height || 60
-                        }));
-                        
-                        const res = await axios.put(`/api/roomadmin/room/${roomId}/seats/positions`, seats);
-                        if (res.data.code === 200) {
-                            ElMessage.success('座位位置保存成功');
-                            isEditMode.value[roomId] = false;
-                            isSelectMode.value[roomId] = false;
-                            selectedSeats.value[roomId] = [];
-                        } else {
-                            ElMessage.error(res.data.message || '保存失败');
-                        }
-                    } catch (e) { 
-                        ElMessage.error('保存失败'); 
-                    } finally { 
-                        saving.value = false; 
-                    }
-                };
-                
-                // 显示添加特殊座位弹窗
-                const showAddSpecialSeat = (roomId) => {
-                    currentRoomId.value = roomId;
-                    specialSeatForm.roomId = roomId;
-                    specialSeatForm.seatType = 2;
-                    specialSeatForm.seatNumber = '';
-                    specialSeatForm.positionX = 20;
-                    specialSeatForm.positionY = 20;
-                    specialSeatForm.width = 80;
-                    specialSeatForm.height = 60;
-                    specialSeatDialogVisible.value = true;
-                };
-                
-                // 添加特殊座位
-                const addSpecialSeat = async () => {
-                    saving.value = true;
-                    try {
-                        // 构建提交数据
-                        const submitData = {
-                            seatType: specialSeatForm.seatType,
-                            seatNumber: specialSeatForm.seatNumber,
-                            positionX: specialSeatForm.positionX,
-                            positionY: specialSeatForm.positionY
-                        };
-                        // 过道/柱子可以自定义尺寸，空隙使用默认尺寸
-                        if (specialSeatForm.seatType === 2) {
-                            submitData.width = specialSeatForm.width;
-                            submitData.height = specialSeatForm.height;
-                        } else {
-                            submitData.width = 80;
-                            submitData.height = 60;
-                        }
-                        
-                        const res = await axios.post(`/api/roomadmin/room/${currentRoomId.value}/seat-special`, submitData);
-                        if (res.data.code === 200) {
-                            ElMessage.success('添加成功');
-                            specialSeatDialogVisible.value = false;
-                            await fetchSeats(currentRoomId.value);
-                        } else {
-                            ElMessage.error(res.data.message || '添加失败');
-                        }
-                    } catch (e) {
-                        ElMessage.error('添加失败');
-                    } finally {
-                        saving.value = false;
-                    }
-                };
-                
-                // 删除单个座位
-                const deleteSingleSeat = async (seatId, roomId) => {
-                    try {
-                        await ElMessageBox.confirm('确定删除该座位？', '提示', { type: 'warning' });
-                        const res = await axios.delete(`/api/roomadmin/seat/${seatId}`);
-                        if (res.data.code === 200) {
-                            ElMessage.success('删除成功');
-                            await fetchSeats(roomId);
-                        } else ElMessage.error(res.data.message || '删除失败');
-                    } catch (e) {}
-                };
+                    });
 
-                // 过道拉伸相关状态
-                const resizingSeat = ref(null);
-                const resizeDir = ref('');
-                const resizeStartData = ref(null);
-
-                const onResizeStart = (e, seat, roomId, dir) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    resizingSeat.value = seat;
-                    resizeDir.value = dir;
-                    const container = e.target.closest('.seat-layout-container');
-                    containerRect.value = container.getBoundingClientRect();
-                    resizeStartData.value = {
-                        mouseX: e.clientX,
-                        mouseY: e.clientY,
-                        origW: seat.width || 80,
-                        origH: seat.height || 60,
-                        origX: seat.positionX,
-                        origY: seat.positionY
-                    };
-                };
-
-                // 添加普通座位
-                const addSeat = async (roomId) => {
-                    try {
-                        const res = await axios.post(`/api/roomadmin/room/${roomId}/seat`);
-                        if (res.data.code === 200) {
-                            ElMessage.success('添加成功，请拖动到合适位置后保存');
-                            await fetchSeats(roomId);
-                        } else {
-                            ElMessage.error(res.data.message || '添加失败');
-                        }
-                    } catch (e) {
-                        ElMessage.error('添加失败');
+                    for (const seatId of selectedSeats.value[roomId]) {
+                        await axios.delete(`/api/roomadmin/seat/${seatId}`);
                     }
-                };
-
-                // 批量删除座位
-                const batchDeleteSeats = async (roomId) => {
-                    try {
-                        await ElMessageBox.confirm(`确定删除选中的 ${selectedSeats.value[roomId].length} 个座位吗？`, '提示', {
-                            confirmButtonText: '确定',
-                            cancelButtonText: '取消',
-                            type: 'warning'
-                        });
-
-                        for (const seatId of selectedSeats.value[roomId]) {
-                            await axios.delete(`/api/roomadmin/seat/${seatId}`);
-                        }
-                        ElMessage.success('删除成功');
-                        selectedSeats.value[roomId] = [];
-                        await fetchSeats(roomId);
-                    } catch (e) {
-                        if (e !== 'cancel') {
-                            ElMessage.error('删除失败');
-                        }
-                    }
-                };
-                
-                // 显示管理标签弹窗
-                const showManageTags = (roomId) => {
-                    currentRoomId.value = roomId;
-                    tagForm.tagName = '';
-                    tagForm.tagColor = '#409EFF';
-                    tagDialogVisible.value = true;
-                };
-                
-                // 添加标签
-                const addTag = async () => {
-                    if (!tagForm.tagName.trim()) {
-                        ElMessage.warning('请输入标签名称');
-                        return;
-                    }
-                    saving.value = true;
-                    try {
-                        const res = await axios.post(`/api/roomadmin/room/${currentRoomId.value}/seat-tag`, tagForm);
-                        if (res.data.code === 200) {
-                            ElMessage.success('添加成功');
-                            tagForm.tagName = '';
-                            await fetchSeatTags(currentRoomId.value);
-                        } else {
-                            ElMessage.error(res.data.message || '添加失败');
-                        }
-                    } catch (e) {
-                        ElMessage.error('添加失败');
-                    } finally {
-                        saving.value = false;
-                    }
-                };
-                
-                // 删除标签
-                const deleteTag = async (tagId) => {
-                    try {
-                        const res = await axios.delete(`/api/roomadmin/seat-tag/${tagId}`);
-                        if (res.data.code === 200) {
-                            ElMessage.success('删除成功');
-                            await fetchSeatTags(currentRoomId.value);
-                        }
-                    } catch (e) {
+                    ElMessage.success('删除成功');
+                    selectedSeats.value[roomId] = [];
+                    await fetchSeats(roomId);
+                } catch (e) {
+                    if (e !== 'cancel') {
                         ElMessage.error('删除失败');
                     }
-                };
-                
-                // 保存座位标签
-                const saveSeatTags = async () => {
-                    saving.value = true;
-                    try {
-                        const res = await axios.put(`/api/roomadmin/seat/${currentSeat.value.id}/tags`, {
-                            tags: JSON.stringify(currentSeatTags.value)
-                        });
-                        if (res.data.code === 200) {
-                            ElMessage.success('保存成功');
-                            currentSeat.value.tags = JSON.stringify(currentSeatTags.value);
-                            seatTagDialogVisible.value = false;
-                        } else {
-                            ElMessage.error(res.data.message || '保存失败');
-                        }
-                    } catch (e) {
-                        ElMessage.error('保存失败');
-                    } finally {
-                        saving.value = false;
+                }
+            };
+
+            // 显示管理标签弹窗
+            const showManageTags = (roomId) => {
+                currentRoomId.value = roomId;
+                tagForm.tagName = '';
+                tagForm.tagColor = '#409EFF';
+                tagDialogVisible.value = true;
+            };
+
+            // 添加标签
+            const addTag = async () => {
+                if (!tagForm.tagName.trim()) {
+                    ElMessage.warning('请输入标签名称');
+                    return;
+                }
+                saving.value = true;
+                try {
+                    const res = await axios.post(`/api/roomadmin/room/${currentRoomId.value}/seat-tag`, tagForm);
+                    if (res.data.code === 200) {
+                        ElMessage.success('添加成功');
+                        tagForm.tagName = '';
+                        await fetchSeatTags(currentRoomId.value);
+                    } else {
+                        ElMessage.error(res.data.message || '添加失败');
                     }
-                };
+                } catch (e) {
+                    ElMessage.error('添加失败');
+                } finally {
+                    saving.value = false;
+                }
+            };
 
-                const editRoom = (room) => {
-                    Object.assign(editForm, room);
-                    editDialogVisible.value = true;
-                };
+            // 删除标签
+            const deleteTag = async (tagId) => {
+                try {
+                    const res = await axios.delete(`/api/roomadmin/seat-tag/${tagId}`);
+                    if (res.data.code === 200) {
+                        ElMessage.success('删除成功');
+                        await fetchSeatTags(currentRoomId.value);
+                    }
+                } catch (e) {
+                    ElMessage.error('删除失败');
+                }
+            };
 
-                const saveRoom = async () => {
-                    saving.value = true;
-                    try {
-                        const res = await axios.put(`/api/roomadmin/room/${editForm.id}`, editForm);
-                        if (res.data.code === 200) {
-                            ElMessage.success('保存成功');
-                            editDialogVisible.value = false;
-                            fetchRooms();
-                        } else ElMessage.error(res.data.message || '保存失败');
-                    } catch (e) { ElMessage.error('保存失败'); }
-                    finally { saving.value = false; }
-                };
+            // 保存座位标签
+            const saveSeatTags = async () => {
+                saving.value = true;
+                try {
+                    const res = await axios.put(`/api/roomadmin/seat/${currentSeat.value.id}/tags`, {
+                        tags: JSON.stringify(currentSeatTags.value)
+                    });
+                    if (res.data.code === 200) {
+                        ElMessage.success('保存成功');
+                        currentSeat.value.tags = JSON.stringify(currentSeatTags.value);
+                        seatTagDialogVisible.value = false;
+                    } else {
+                        ElMessage.error(res.data.message || '保存失败');
+                    }
+                } catch (e) {
+                    ElMessage.error('保存失败');
+                } finally {
+                    saving.value = false;
+                }
+            };
 
-                const goTo = (path) => { window.location.href = path; };
-                const logout = async () => { 
-                    try { 
-                        await axios.post('/auth/logout'); 
-                        window.location.href = '/login'; 
-                    } catch (e) {} 
-                };
+            const editRoom = (room) => {
+                Object.assign(editForm, room);
+                editDialogVisible.value = true;
+            };
 
-                onMounted(fetchRooms);
+            const saveRoom = async () => {
+                saving.value = true;
+                try {
+                    const res = await axios.put(`/api/roomadmin/room/${editForm.id}`, editForm);
+                    if (res.data.code === 200) {
+                        ElMessage.success('保存成功');
+                        editDialogVisible.value = false;
+                        fetchRooms();
+                    } else ElMessage.error(res.data.message || '保存失败');
+                } catch (e) { ElMessage.error('保存失败'); }
+                finally { saving.value = false; }
+            };
 
-                return { 
-                    loading, rooms, roomSeats, editDialogVisible, saving, editForm, 
-                    isEditMode, isSelectMode, draggingSeat, selectionBox, selectedSeats,
-                    getSeatClass, getSeatStatusText, getSeatStyle, getSeatMapStyle,
-                    formatTags, getTagIcons,
-                    toggleEditMode, toggleSelectMode, isSeatSelected,
-                    onContainerMouseDown, onContainerMouseMove, onContainerMouseUp,
-                    onMouseDown, onSeatClick, onSeatDblClick,
-                    resetPositions, savePositions,
-                    specialSeatDialogVisible, specialSeatForm, showAddSpecialSeat, addSpecialSeat,
-                    addSeat, batchDeleteSeats, deleteSingleSeat,
-                    resizingSeat, onResizeStart,
-                    tagDialogVisible, seatTags, tagForm, showManageTags, addTag, deleteTag,
-                    seatTagDialogVisible, currentSeat, currentSeatTags, saveSeatTags, currentRoomId,
-                    presetTags, customTagInput, togglePresetTag, addCustomTag, removeCustomTag,
-                    editRoom, saveRoom, goTo, logout 
-                };
-            }
-        }).use(ElementPlus).mount('#app');
-    </script>
+            const goTo = (path) => { window.location.href = path; };
+            const logout = async () => {
+                try {
+                    await axios.post('/auth/logout');
+                    window.location.href = '/login';
+                } catch (e) {}
+            };
+
+            onMounted(fetchRooms);
+
+            return {
+                loading, rooms, roomSeats, editDialogVisible, saving, editForm,
+                isEditMode, isSelectMode, draggingSeat, selectionBox, selectedSeats,
+                getSeatClass, getSeatStatusText, getSeatStyle, getSeatMapStyle,
+                formatTags, getTagIcons,
+                toggleEditMode, toggleSelectMode, isSeatSelected,
+                onContainerMouseDown, onContainerMouseMove, onContainerMouseUp,
+                onMouseDown, onSeatClick, onSeatDblClick,
+                resetPositions, savePositions,
+                specialSeatDialogVisible, specialSeatForm, showAddSpecialSeat, addSpecialSeat,
+                addSeat, batchDeleteSeats, deleteSingleSeat,
+                resizingSeat, onResizeStart,
+                tagDialogVisible, seatTags, tagForm, showManageTags, addTag, deleteTag,
+                seatTagDialogVisible, currentSeat, currentSeatTags, saveSeatTags, currentRoomId,
+                presetTags, customTagInput, togglePresetTag, addCustomTag, removeCustomTag,
+                renameDialogVisible, renameForm, confirmRename, openTagEditFromRename,
+                editRoom, saveRoom, goTo, logout
+            };
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
 </body>
 </html>

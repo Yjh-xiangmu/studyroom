@@ -89,6 +89,8 @@
                             <div class="post-author">
                                 <el-avatar :size="32">{{post.authorName?.charAt(0)}}</el-avatar>
                                 <span>{{post.authorName}}</span>
+                                <el-tag v-if="post.authorType === 3" type="danger" size="small">系统管理员</el-tag>
+                                <el-tag v-else-if="post.authorType === 2" type="warning" size="small">自习室管理员</el-tag>
                                 <el-tag size="small">{{getCategoryName(post.category)}}</el-tag>
                             </div>
                             <span style="color: #999; font-size: 14px;">{{post.createTime}}</span>

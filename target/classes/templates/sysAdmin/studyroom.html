@@ -67,7 +67,7 @@
                         </div>
                         <div v-for="room in roomList" :key="room.id" class="room-card">
                             <div style="display: flex; gap: 16px;">
-                                <img :src="getRoomImage(room.id)" style="width: 120px; height: 80px; object-fit: cover; border-radius: 8px;" alt="自习室图片">
+                                <img :src="room.imageUrl || getRoomImage(room.id)" style="width: 120px; height: 80px; object-fit: cover; border-radius: 8px;" alt="自习室图片">
                                 <div style="flex: 1;">
                                     <div class="room-header">
                                         <span class="room-name">{{ room.name }}</span>
@@ -123,6 +123,24 @@
                     <el-radio-group v-model="form.status"><el-radio :label="1">开放</el-radio><el-radio :label="0">关闭</el-radio></el-radio-group>
                 </el-form-item>
                 <el-form-item label="描述" prop="description"><el-input v-model="form.description" type="textarea" rows="3"></el-input></el-form-item>
+                <el-form-item label="封面图片">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <el-upload
+                            action="/api/upload/image"
+                            :show-file-list="false"
+                            accept="image/*"
+                            :on-success="handleImageSuccess"
+                            :on-error="handleImageError"
+                            :before-upload="beforeImageUpload">
+                            <el-button size="small" type="primary">点击上传图片</el-button>
+                        </el-upload>
+                        <span style="color: #999; font-size: 12px;">支持 JPG/PNG，不超过5MB</span>
+                    </div>
+                    <div v-if="form.imageUrl" style="margin-top: 8px;">
+                        <img :src="form.imageUrl" style="width: 200px; height: 120px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;">
+                        <el-button size="small" type="danger" text style="margin-left: 8px;" @click="form.imageUrl = ''">移除</el-button>
+                    </div>
+                </el-form-item>
                 <el-form-item label="负责管理员">
                     <el-select v-model="form.adminId" placeholder="请选择管理员（可为空）" style="width: 100%;" clearable>
                         <el-option v-for="a in adminList" :key="a.id" :label="(a.realName || a.username) + ' (' + a.username + ')'" :value="a.id"></el-option>
@@ -150,7 +168,7 @@
                 const formRef = ref(null);
                 const searchForm = reactive({ name: '', building: '', status: null });
                 const page = reactive({ current: 1, size: 10, total: 0 });
-                const form = reactive({ id: null, name: '', building: '', floor: 1, roomNumber: '', type: '普通', capacity: 50, rowCount: 5, colCount: 10, openTime: '08:00:00', closeTime: '22:00:00', hasAirCondition: true, hasWifi: true, hasPower: true, status: 1, description: '', adminId: null });
+                const form = reactive({ id: null, name: '', building: '', floor: 1, roomNumber: '', type: '普通', capacity: 50, rowCount: 5, colCount: 10, openTime: '08:00:00', closeTime: '22:00:00', hasAirCondition: true, hasWifi: true, hasPower: true, status: 1, description: '', adminId: null, imageUrl: '' });
                 const adminList = ref([]);
                 const fetchAdminList = async () => {
                     try {
@@ -170,8 +188,11 @@
                 };
                 const handleSearch = () => { page.current = 1; fetchList(); };
                 const resetSearch = () => { searchForm.name = ''; searchForm.building = ''; searchForm.status = null; handleSearch(); };
-                const handleAdd = () => { isEdit.value = false; Object.assign(form, { id: null, name: '', building: '', floor: 1, roomNumber: '', type: '普通', capacity: 50, rowCount: 5, colCount: 10, openTime: '08:00:00', closeTime: '22:00:00', hasAirCondition: true, hasWifi: true, hasPower: true, status: 1, description: '', adminId: null }); dialogVisible.value = true; };
-                const handleEdit = (row) => { isEdit.value = true; Object.assign(form, { ...row }); dialogVisible.value = true; };
+                const handleAdd = () => { isEdit.value = false; Object.assign(form, { id: null, name: '', building: '', floor: 1, roomNumber: '', type: '普通', capacity: 50, rowCount: 5, colCount: 10, openTime: '08:00:00', closeTime: '22:00:00', hasAirCondition: true, hasWifi: true, hasPower: true, status: 1, description: '', adminId: null, imageUrl: '' }); dialogVisible.value = true; };
+                const handleEdit = (row) => { isEdit.value = true; Object.assign(form, { ...row, imageUrl: row.imageUrl || '' }); dialogVisible.value = true; };
+                const handleImageSuccess = (res) => { if (res.code === 200) { form.imageUrl = res.data; ElMessage.success('上传成功'); } else { ElMessage.error(res.message || '上传失败'); } };
+                const handleImageError = () => { ElMessage.error('图片上传失败，请重试'); };
+                const beforeImageUpload = (file) => { const isImage = file.type.startsWith('image/'); const isLt5M = file.size / 1024 / 1024 < 5; if (!isImage) { ElMessage.error('只能上传图片文件'); return false; } if (!isLt5M) { ElMessage.error('图片大小不能超过5MB'); return false; } return true; };
                 const handleDelete = async (row) => { try { await ElMessageBox.confirm('确定删除?', '提示', { type: 'warning' }); await axios.delete(`/sysadmin/studyroom/${row.id}`); ElMessage.success('删除成功'); fetchList(); } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败'); } };
                 const handleSubmit = async () => { formRef.value.validate(async (valid) => { if (valid) { try { const url = isEdit.value ? `/sysadmin/studyroom/${form.id}` : '/sysadmin/studyroom'; const method = isEdit.value ? 'put' : 'post'; await axios[method](url, form); ElMessage.success(isEdit.value ? '编辑成功' : '新增成功'); dialogVisible.value = false; fetchList(); } catch (e) { ElMessage.error('保存失败'); } } }); };
                 const handleSizeChange = (val) => { page.size = val; fetchList(); };
@@ -181,7 +202,7 @@
                 const goTo = (path) => { window.location.href = path; };
                 const logout = async () => { try { await axios.post('/auth/logout'); window.location.href = '/login'; } catch (e) {} };
                 onMounted(() => { fetchList(); fetchAdminList(); });
-                return { loading, roomList, dialogVisible, isEdit, form, formRef, rules, searchForm, page, adminList, handleSearch, resetSearch, handleAdd, handleEdit, handleDelete, handleSubmit, handleSizeChange, handleCurrentChange, getRoomImage, getAdminName, goTo, logout };
+                return { loading, roomList, dialogVisible, isEdit, form, formRef, rules, searchForm, page, adminList, handleSearch, resetSearch, handleAdd, handleEdit, handleDelete, handleSubmit, handleSizeChange, handleCurrentChange, handleImageSuccess, handleImageError, beforeImageUpload, getRoomImage, getAdminName, goTo, logout };
             }
         }).use(ElementPlus).mount('#app');
     </script>

@@ -110,7 +110,7 @@
                                     <el-button type="primary" @click="fetchUsers">查询</el-button>
                                     <el-button @click="resetUserSearch">重置</el-button>
                                     <el-button type="success" @click="exportUsers">
-                                        导出连续签到用户（≥{{rewardDays}}天）
+                                        导出全部用户学习统计
                                     </el-button>
                                 </div>
                                 <el-table :data="userList" v-loading="userLoading" border size="small">
@@ -294,7 +294,7 @@
                 const resetUserSearch = () => { userSearch.username = ''; userPage.current = 1; fetchUsers(); };
 
                 const exportUsers = () => {
-                    window.open(`/sysadmin/attendance/export?minDays=${rewardDays.value}`, '_blank');
+                    window.open('/sysadmin/attendance/export', '_blank');
                 };
 
                 // --- 申诉处理 ---
